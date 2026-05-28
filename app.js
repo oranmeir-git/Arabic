@@ -940,7 +940,7 @@ async function loadStories() {
         if (parsedStories.length > 0) {
           // Avoid duplicating stories that are already built-in
           const filteredParsed = parsedStories.filter(ps => 
-            !stories.some(s => s.title.trim().toLowerCase() === ps.title.trim().toLowerCase())
+            !stories.some(s => (s.title || '').trim().toLowerCase() === (ps.title || '').trim().toLowerCase())
           );
           stories = [...stories, ...filteredParsed];
           console.log(`Loaded ${filteredParsed.length} new custom stories from my_stories.txt!`);
@@ -957,7 +957,7 @@ async function loadStories() {
     try {
       const customStories = JSON.parse(customStoriesData);
       const filteredCustom = customStories.filter(cs => 
-        !stories.some(s => s.title.trim().toLowerCase() === cs.title.trim().toLowerCase())
+        !stories.some(s => (s.title || '').trim().toLowerCase() === (cs.title || '').trim().toLowerCase())
       );
       stories = [...stories, ...filteredCustom];
     } catch (e) {
