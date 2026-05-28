@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>חכּוואתי (حكواتي) - לומדים ערבית מדוברת מסיפורים</title>
+  <meta name="description" content="אפליקציה אינטראקטיבית ללימוד ערבית מדוברת באמצעות סיפורים מוקראים שורה-אחר-שורה בדו-לשונית עם הגייה בעברית.">
+  
+  <!-- PWA & Mobile integration -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="logo.svg">
+  <link rel="apple-touch-icon" href="logo.svg">
+  <meta name="theme-color" content="#123024">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Google Fonts: Cairo for Arabic, Heebo for Hebrew -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&family=Heebo:wght@300;400;500;700;900&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <span class="logo-icon">✨</span>
+        <div class="logo-text">
+          <h1>حكواتي <span class="accent-text">חכּוואתי</span></h1>
+          <p class="tagline">הקראת סיפורים ללימוד ערבית מדוברת</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="import-btn" class="icon-btn tooltip" data-tooltip="ייבוא סיפור חדש">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-plus-circle"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+        </button>
+        <button id="settings-btn" class="icon-btn tooltip" data-tooltip="הגדרות קול ושפה">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-settings"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </button>
+        <button id="theme-toggle" class="icon-btn tooltip" data-tooltip="שינוי ערכת נושא">
+          <svg id="theme-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          <svg id="theme-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-sun" style="display: none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Story Selector Drawer/Sidebar -->
+      <section class="story-selector-container">
+        <label for="story-select" class="section-label">בחר סיפור ללמידה:</label>
+        <div class="custom-select-wrapper">
+          <select id="story-select">
+            <!-- Loaded dynamically from stories.json -->
+          </select>
+        </div>
+      </section>
+
+      <!-- Navigation & Mode Bar -->
+      <section class="mode-navigation-bar">
+        <!-- Dual Mode Switch -->
+        <div class="mode-toggle-group">
+          <button id="mode-study" class="mode-btn active" aria-label="מעבר למצב לימוד: ערבית ואז עברית">
+            <span class="mode-icon">📖</span>
+            <div class="mode-info">
+              <span class="mode-title">מצב לימוד משולב</span>
+              <span class="mode-subtitle">ערבית ➔ עברית שורה אחר שורה</span>
+            </div>
+          </button>
+          <button id="mode-listening" class="mode-btn" aria-label="מעבר למצב הקשבה: ערבית בלבד">
+            <span class="mode-icon">🎧</span>
+            <div class="mode-info">
+              <span class="mode-title">מצב הקשבה בערבית</span>
+              <span class="mode-subtitle">ערבית בלבד ברצף</span>
+            </div>
+          </button>
+        </div>
+
+        <!-- View Mode Switch -->
+        <div class="view-toggle-container">
+          <span class="label-text">סגנון תצוגה:</span>
+          <div class="toggle-buttons">
+            <button id="view-card" class="toggle-btn active" title="תצוגת כרטיס בודד">כרטיס ממוקד</button>
+            <button id="view-scroll" class="toggle-btn" title="תצוגת סיפור מלא גלילה">סיפור מלא</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Part Selector -->
+      <section class="part-selector-container" id="part-selector-area">
+        <!-- Loaded dynamically based on active story -->
+      </section>
+
+      <!-- Progress bar -->
+      <div class="progress-bar-container">
+        <div class="progress-info">
+          <span id="current-part-name">טוען סיפור...</span>
+          <span id="progress-text">שורה 0 מתוך 0</span>
+        </div>
+        <div class="progress-track">
+          <div id="progress-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- Story Viewer Area -->
+      <section id="viewer-viewport" class="viewer-viewport card-mode">
+        <!-- Mode 1: Focus Card View -->
+        <div id="focus-card-view" class="focus-card-container">
+          <div class="story-card" id="active-story-card">
+            <div class="card-badges">
+              <span class="badge part-badge" id="card-part-badge">חלק 1</span>
+              <span class="badge lang-badge ar">ערבית מדוברת</span>
+            </div>
+            
+            <div class="sentence-group">
+              <!-- Arabic line -->
+              <div class="sentence-block arabic-block" id="card-arabic" dir="rtl" lang="ar">
+                כל הקטע בחופש הגדול זה שהוא חופש!
+              </div>
+              
+              <!-- Phonetics line -->
+              <div class="sentence-block phonetics-block" id="card-phonetics" dir="rtl">
+                כֻּל אִל-קֻסַּה בִּ-לְ-עֻטְלֵה א-סֵּיפִיֵּה
+              </div>
+              
+              <!-- Hebrew translation line -->
+              <div class="sentence-block hebrew-block" id="card-hebrew" dir="rtl">
+                כל הסיפור בחופש הגדול זה שהוא חופש!
+              </div>
+            </div>
+
+            <!-- Visual assist helpers -->
+            <div class="card-controls-overlay">
+              <button id="speak-line-btn" class="assist-btn tooltip" data-tooltip="הקרא שורה זו שוב">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-volume-2"><path d="M11 5L6 9H2v6h4l5 4V5z"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                הקשב
+              </button>
+              <div class="display-toggles">
+                <label class="switch-container">
+                  <input type="checkbox" id="toggle-phonetics-visible" checked>
+                  <span class="switch-label">הגייה (תעתיק)</span>
+                </label>
+                <label class="switch-container">
+                  <input type="checkbox" id="toggle-hebrew-visible" checked>
+                  <span class="switch-label">תרגום עברי</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode 2: Full Story Scroll View -->
+        <div id="full-story-scroll-view" class="scroll-story-container" style="display: none;">
+          <div class="story-lines-list" id="story-lines-list">
+            <!-- Populated dynamically with all lines, active one gets .active class and auto-centered -->
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Audio & Story Navigation Controls -->
+    <section class="playback-controls-container">
+      <div class="speed-control">
+        <span class="control-label">מהירות הקראה:</span>
+        <div class="slider-wrapper">
+          <input type="range" id="speech-speed" min="0.5" max="1.5" step="0.1" value="0.9">
+          <span id="speed-display" class="badge">0.9x</span>
+        </div>
+      </div>
+
+      <div class="main-buttons">
+        <button id="btn-prev" class="play-action-btn secondary tooltip" data-tooltip="שורה הקודמת (חץ ימינה)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-skip-forward"><polyline points="5 4 15 12 5 20"></polyline><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+        </button>
+        
+        <button id="btn-play-pause" class="play-action-btn primary tooltip" data-tooltip="הפעל / השהה (רווח)">
+          <!-- Play icon -->
+          <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="feather feather-play"><polygon points="6 3 20 12 6 21"></polygon></svg>
+          <!-- Pause icon (hidden by default) -->
+          <svg id="pause-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="feather feather-pause" style="display:none;"><rect x="5" y="4" width="4" height="16" rx="1"></rect><rect x="15" y="4" width="4" height="16" rx="1"></rect></svg>
+        </button>
+
+        <button id="btn-next" class="play-action-btn secondary tooltip" data-tooltip="שורה הבאה (חץ שמאלה)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-skip-back"><polyline points="19 20 9 12 19 4"></polyline><line x1="5" y1="5" x2="5" y2="19"></line></svg>
+        </button>
+      </div>
+
+      <div class="helper-controls">
+        <button id="btn-replay-story" class="text-btn">
+          🔄 הפעל מחדש
+        </button>
+        <span class="divider">|</span>
+        <button id="btn-autoplay" class="text-btn active">
+          ⚡ מעבר אוטומטי
+        </button>
+      </div>
+    </section>
+
+    <!-- Modal: Settings Drawer -->
+    <div id="settings-modal" class="modal">
+      <div class="modal-content glass-card">
+        <span class="close-modal">&times;</span>
+        <h2>🔧 הגדרות שמע ודיבור</h2>
+        
+        <div class="settings-group">
+          <h3>קול להקראת ערבית (Arabic TTS)</h3>
+          <p class="setting-desc">המנוע יבחר את הקול הטוב ביותר המותקן במכשירך. באפשרותך לשנותו כאן:</p>
+          <div class="custom-select-wrapper">
+            <select id="voice-select-arabic">
+              <option value="default">טוען קולות ערבית...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h3>קול להקראת עברית (Hebrew TTS)</h3>
+          <p class="setting-desc">להקראת תרגום השורות לעברית במצב לימוד:</p>
+          <div class="custom-select-wrapper">
+            <select id="voice-select-hebrew">
+              <option value="default">טוען קולות עברית...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-group warning-card" id="tts-warning" style="display:none;">
+          <span class="warning-icon">⚠️</span>
+          <div>
+            <strong>שים לב:</strong> הדפדפן שלך לא מדווח על מנועי דיבור מובנים בעברית או ערבית.
+            האפליקציה תנסה להשתמש בקולות ברירת המחדל, אך מומלץ להשתמש בדפדפן כרום (Chrome) או אדג' (Edge) בגרסה עדכנית לקבלת המבטא הטוב ביותר.
+          </div>
+        </div>
+
+        <button id="save-settings" class="modal-save-btn">שמור הגדרות</button>
+      </div>
+    </div>
+
+    <!-- Modal: Import custom story -->
+    <div id="import-modal" class="modal">
+      <div class="modal-content glass-card wide">
+        <span class="close-modal">&times;</span>
+        <h2>✍️ ייבוא סיפור מותאם אישית</h2>
+        <p class="setting-desc">הדבק כאן את הסיפור שלך. המערכת תזהה את המבנה ותהפוך אותו מיידית לסיפור אינטראקטיבי מוקרא!</p>
+        
+        <div class="import-format-guide">
+          <strong>מבנה טעינה מומלץ:</strong>
+          <pre>עברית: [שורה בעברית]
+ערבית: [שורה בערבית]
+הגייה: [תעתיק והגייה בעברית (אופציונלי)]
+
+[שורה ריקה בין מקטעים]</pre>
+        </div>
+
+        <div class="settings-group">
+          <label for="import-title" class="input-label">שם הסיפור (עברית):</label>
+          <input type="text" id="import-title" placeholder="לדוגמה: גילי והדרקון בגינה">
+          
+          <label for="import-arabic-title" class="input-label">שם הסיפור בערבית (אופציונלי):</label>
+          <input type="text" id="import-arabic-title" placeholder="لדוגמה: جيلي والتنين بالحديقة" dir="ltr" style="text-align: right;">
+        </div>
+
+        <div class="settings-group">
+          <label for="import-textarea" class="input-label">תוכן הסיפור:</label>
+          <textarea id="import-textarea" rows="12" placeholder="עברית: כל הקטע בחופש הגדול זה שהוא חופש!
+ערבית: كل القصة بالعطلة الصيفية إنها عطلة!
+הגייה: כֻּל אִל-קֻסַּה בִּ-לְ-עֻטְלֵה א-סֵּיפִיֵּה
+
+עברית: כשביקשו ממנה לתת אוכל...
+ערבית: لما طلبوا منها تطعمي...
+הגייה: לַמַּא טַלַבּוּ מִנְהַא..."></textarea>
+        </div>
+
+        <div class="import-actions">
+          <button id="submit-import" class="modal-save-btn">צור סיפור והפעל!</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

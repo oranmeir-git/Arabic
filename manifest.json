@@ -1,0 +1,18 @@
+{
+  "name": "חכּוואתי - לומדים ערבית מסיפורים",
+  "short_name": "חכּוואתי",
+  "description": "אפליקציה אינטראקטיבית ללימוד ערבית מדוברת מסיפורים מוקראים שורה-אחר-שורה בדו-לשונית עם הגייה בעברית.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0d1b15",
+  "theme_color": "#123024",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "logo.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

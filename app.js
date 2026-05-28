@@ -1,0 +1,1623 @@
+/**
+ * Hakawati (חכּוואתי) - Storyteller App Logic
+ * Designed for Spoken Arabic Language Learning using Web Speech API (TTS)
+ */
+
+// Application State
+let state = {
+  stories: [],
+  currentStoryIndex: 0,
+  currentPartIndex: 0,
+  currentLineIndex: 0,
+  
+  playMode: 'study', // 'study' (ar + he) or 'listening' (ar only)
+  viewMode: 'card',  // 'card' (single card focus) or 'scroll' (scrolling list)
+  
+  isPlaying: false,
+  speechSpeed: 0.9,
+  autoAdvance: true,
+  
+  voices: [],
+  selectedArabicVoiceName: '',
+  selectedHebrewVoiceName: '',
+  
+  // Display settings
+  phoneticsVisible: true,
+  hebrewVisible: true,
+  
+  // Track active utterance to cancel
+  currentUtterance: null,
+  isWaitingTimeout: null
+};
+
+// DOM Elements
+const selectStory = document.getElementById('story-select');
+const partSelectorArea = document.getElementById('part-selector-area');
+const currentPartNameLabel = document.getElementById('current-part-name');
+const progressTextLabel = document.getElementById('progress-text');
+const progressFill = document.getElementById('progress-fill');
+
+// View Containers
+const cardArabic = document.getElementById('card-arabic');
+const cardPhonetics = document.getElementById('card-phonetics');
+const cardHebrew = document.getElementById('card-hebrew');
+const cardPartBadge = document.getElementById('card-part-badge');
+const activeStoryCard = document.getElementById('active-story-card');
+const viewerViewport = document.getElementById('viewer-viewport');
+const focusCardView = document.getElementById('focus-card-view');
+const fullStoryScrollView = document.getElementById('full-story-scroll-view');
+const storyLinesList = document.getElementById('story-lines-list');
+
+// Buttons & Inputs
+const btnPrev = document.getElementById('btn-prev');
+const btnNext = document.getElementById('btn-next');
+const btnPlayPause = document.getElementById('btn-play-pause');
+const playIcon = document.getElementById('play-icon');
+const pauseIcon = document.getElementById('pause-icon');
+const btnReplayStory = document.getElementById('btn-replay-story');
+const btnAutoplay = document.getElementById('btn-autoplay');
+const speechSpeedSlider = document.getElementById('speech-speed');
+const speedDisplay = document.getElementById('speed-display');
+const speakLineBtn = document.getElementById('speak-line-btn');
+
+// Mode Switchers
+const modeStudy = document.getElementById('mode-study');
+const modeListening = document.getElementById('mode-listening');
+const viewCard = document.getElementById('view-card');
+const viewScroll = document.getElementById('view-scroll');
+
+// Settings & Import Modals
+const settingsBtn = document.getElementById('settings-btn');
+const settingsModal = document.getElementById('settings-modal');
+const importBtn = document.getElementById('import-btn');
+const importModal = document.getElementById('import-modal');
+const closeModals = document.querySelectorAll('.close-modal');
+const voiceSelectArabic = document.getElementById('voice-select-arabic');
+const voiceSelectHebrew = document.getElementById('voice-select-hebrew');
+const saveSettingsBtn = document.getElementById('save-settings');
+const ttsWarning = document.getElementById('tts-warning');
+
+// Importer elements
+const importTitle = document.getElementById('import-title');
+const importArabicTitle = document.getElementById('import-arabic-title');
+const importTextarea = document.getElementById('import-textarea');
+const submitImportBtn = document.getElementById('submit-import');
+
+// Preferences checkboxes
+const togglePhoneticsVisible = document.getElementById('toggle-phonetics-visible');
+const toggleHebrewVisible = document.getElementById('toggle-hebrew-visible');
+const themeToggleBtn = document.getElementById('theme-toggle');
+const themeMoon = document.getElementById('theme-moon');
+const themeSun = document.getElementById('theme-sun');
+
+// Initialize the Application
+window.addEventListener('DOMContentLoaded', () => {
+  setupSpeechSynthesis();
+  loadThemePreference();
+  loadDisplayPreferences();
+  bindEvents();
+  loadStories();
+  registerServiceWorker();
+});
+
+// ==========================================================================
+// Speech Synthesis (TTS) Setup
+// ==========================================================================
+function setupSpeechSynthesis() {
+  if (!('speechSynthesis' in window)) {
+    alert('מצטערים, הדפדפן שלך אינו תומך בהקראת קול (Web Speech API). מומלץ להשתמש בדפדפן כרום או אדג׳.');
+    return;
+  }
+
+  // Load voices when they are populated
+  window.speechSynthesis.onvoiceschanged = () => {
+    state.voices = window.speechSynthesis.getVoices();
+    populateVoiceSelectors();
+  };
+
+  // Immediate attempt
+  state.voices = window.speechSynthesis.getVoices();
+  populateVoiceSelectors();
+}
+
+function populateVoiceSelectors() {
+  if (state.voices.length === 0) return;
+
+  // Filter Arabic and Hebrew voices
+  const arVoices = state.voices.filter(v => v.lang.startsWith('ar'));
+  const heVoices = state.voices.filter(v => v.lang.startsWith('he') || v.lang.startsWith('iw'));
+
+  // Update warnings
+  if (arVoices.length === 0 || heVoices.length === 0) {
+    ttsWarning.style.display = 'flex';
+  } else {
+    ttsWarning.style.display = 'none';
+  }
+
+  // Populate Arabic select
+  voiceSelectArabic.innerHTML = '';
+  if (arVoices.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = 'default';
+    opt.textContent = 'קול ברירת מחדל בערבית';
+    voiceSelectArabic.appendChild(opt);
+  } else {
+    arVoices.forEach(voice => {
+      const opt = document.createElement('option');
+      opt.value = voice.name;
+      opt.textContent = `${voice.name} (${voice.lang})`;
+      // Prefer Google or high quality voices
+      if (voice.name.includes('Google') || voice.name.includes('Premium')) {
+        opt.selected = true;
+        state.selectedArabicVoiceName = voice.name;
+      }
+      voiceSelectArabic.appendChild(opt);
+    });
+    // Set default if nothing selected yet
+    if (!state.selectedArabicVoiceName && arVoices.length > 0) {
+      state.selectedArabicVoiceName = arVoices[0].name;
+    }
+  }
+
+  // Populate Hebrew select
+  voiceSelectHebrew.innerHTML = '';
+  if (heVoices.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = 'default';
+    opt.textContent = 'קול ברירת מחדל בעברית';
+    voiceSelectHebrew.appendChild(opt);
+  } else {
+    heVoices.forEach(voice => {
+      const opt = document.createElement('option');
+      opt.value = voice.name;
+      opt.textContent = `${voice.name} (${voice.lang})`;
+      if (voice.name.includes('Google') || voice.name.includes('Carmit') || voice.name.includes('Premium')) {
+        opt.selected = true;
+        state.selectedHebrewVoiceName = voice.name;
+      }
+      voiceSelectHebrew.appendChild(opt);
+    });
+    if (!state.selectedHebrewVoiceName && heVoices.length > 0) {
+      state.selectedHebrewVoiceName = heVoices[0].name;
+    }
+  }
+
+  // Load from localStorage if user previously saved
+  const savedAr = localStorage.getItem('tts_arabic_voice');
+  const savedHe = localStorage.getItem('tts_hebrew_voice');
+  if (savedAr && state.voices.some(v => v.name === savedAr)) {
+    state.selectedArabicVoiceName = savedAr;
+    voiceSelectArabic.value = savedAr;
+  }
+  if (savedHe && state.voices.some(v => v.name === savedHe)) {
+    state.selectedHebrewVoiceName = savedHe;
+    voiceSelectHebrew.value = savedHe;
+  }
+}
+
+// ==========================================================================
+// Theme and Display Preferences
+// ==========================================================================
+function loadThemePreference() {
+  const isLight = localStorage.getItem('theme') === 'light';
+  if (isLight) {
+    document.body.classList.remove('dark-theme');
+    document.body.classList.add('light-theme');
+    themeMoon.style.display = 'none';
+    themeSun.style.display = 'block';
+  } else {
+    document.body.classList.remove('light-theme');
+    document.body.classList.add('dark-theme');
+    themeMoon.style.display = 'block';
+    themeSun.style.display = 'none';
+  }
+}
+
+function toggleTheme() {
+  const isDark = document.body.classList.contains('dark-theme');
+  if (isDark) {
+    document.body.classList.remove('dark-theme');
+    document.body.classList.add('light-theme');
+    localStorage.setItem('theme', 'light');
+    themeMoon.style.display = 'none';
+    themeSun.style.display = 'block';
+  } else {
+    document.body.classList.remove('light-theme');
+    document.body.classList.add('dark-theme');
+    localStorage.setItem('theme', 'dark');
+    themeMoon.style.display = 'block';
+    themeSun.style.display = 'none';
+  }
+}
+
+function loadDisplayPreferences() {
+  const phVis = localStorage.getItem('display_phonetics') !== 'false';
+  const heVis = localStorage.getItem('display_hebrew') !== 'false';
+  
+  state.phoneticsVisible = phVis;
+  state.hebrewVisible = heVis;
+  
+  togglePhoneticsVisible.checked = phVis;
+  toggleHebrewVisible.checked = heVis;
+  
+  applyDisplayFilters();
+}
+
+function applyDisplayFilters() {
+  cardPhonetics.style.display = state.phoneticsVisible ? 'block' : 'none';
+  cardHebrew.style.display = state.hebrewVisible ? 'block' : 'none';
+  
+  // Also apply to scroll view items
+  const scrollPhonetics = document.querySelectorAll('.scroll-ph');
+  const scrollHebrews = document.querySelectorAll('.scroll-he');
+  
+  scrollPhonetics.forEach(el => el.style.display = state.phoneticsVisible ? 'block' : 'none');
+  scrollHebrews.forEach(el => el.style.display = state.hebrewVisible ? 'block' : 'none');
+}
+
+// ==========================================================================
+// Embedded Fallback Story Data (Ensures app works offline/file:// immediately)
+// ==========================================================================
+const DEFAULT_STORY_DATA = [
+  {
+    "id": "gili-dragon",
+    "title": "גילי והדרקון בגינה",
+    "arabicTitle": "جيلي والتنين بالحديقة",
+    "description": "סיפור מקסים בערבית מדוברת על ילדה בשם גילי, הכלב שלה ארתור, ומפגש מפתיע עם דרקון בגינת סוקולוב.",
+    "parts": [
+      {
+        "id": 1,
+        "name": "חלק 1: בוקר של חופש",
+        "lines": [
+          {
+            "hebrew": "כל הקטע בחופש הגדול זה שהוא חופש! לא צריך לעשות בו כלום! זה מה שגילי אמרה כל הזמן.",
+            "arabic": "كل القصة بالعطلة الصيفية إنها عطلة! مش لازم نعمل فيها إشي! هاد اللي كانت تقوله جيلي طول الوقت.",
+            "phonetics": "כֻּל אִל-קֻסַּה בִּ-לְ-עֻטְלֵה א-סֵּיפִיֵּה אִנְּהַא עֻטְלֵה! מִש לַאזֵם נִעְמַל פִיהַא אִשִי! הַאד אִלִּי כַּאנַת תְקוּלוֹ גִ'ילִי טוּל אִלְ-וַקְת."
+          },
+          {
+            "hebrew": "כשביקשו ממנה לתת אוכל לארתור הכלב. כשאמרו לה לפנות את הכלים שלה אחרי הארוחה.",
+            "arabic": "لما طلبوا منها تطعمي الكلب آرثر. ولما قالولها تضب صحونها بعد الأكل.",
+            "phonetics": "לַמַּא טַלַבּוּ מִנְהַא תְטַעְמִי אִלְ-כַּלְבּ אַרְתוּר. וּלַמַּא קַאלוּלְהַא תְדֻבּ צְחוּנְהַא בַּעְד אִלְ-אַכֶּל."
+          },
+          {
+            "hebrew": "לשים עין על אחיה הקטן. להוריד את הזבל. לסדר את החדר שלה. מה לא ברור במילה ח-ו-פ-ש?",
+            "arabic": "وتدير بالها على أخوها الصغير. وتكب الزبالة. وترتب غرفتها. شو اللي مش مفهوم بكلمة عـ ـطـ  ـلـ  ـة؟",
+            "phonetics": "וּתְדִיר בַּאלְהַא עַלַא אַחוּהַא א-זְּעִ'יר. וּתְכִּבּ אִז-זְבַּאלֵה. וּתְרַתֵּבּ עֻ'רְפִתְהַא. שוּ אִלִּי מִש מַפְהוּם בְּכִּלְמֵת עֻ-טְ-לֵ-ה?"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "חלק 2: היציאה לטיול",
+        "lines": [
+          {
+            "hebrew": "יום שני אחד אבא הגזים. הוא ביקש ממנה לקחת את ארתור לטיול בזמן שהוא מכין ארוחת בוקר!",
+            "arabic": "بيوم إثنين أبوها زودها. طلب منها توخد آرثر مشوار بالوقت اللي هو بيحضر فيه الفطور!",
+            "phonetics": "בְּיוֹם אִתְנֵין אַבּוּהַא זַוַּדְהַא. טַלַבּ מִנְהַא תוֹחֶ'ד אַרְתוּר מִשְוַאר בִּ-לְ-וַקְת אִלִּי הוּ בִּיחַדֵּר פִיה אִלְ-פְטוּר!"
+          },
+          {
+            "hebrew": "וזאת למרות שהיא רצתה לצלם סרטון לרותם שהיתה בטיול באנגליה עם המשפחה שלה.",
+            "arabic": "وهاد مع إنها كانت بدها تصور فيديو لروتم اللي كانت برحلة ببريطانيا مع عيلتها.",
+            "phonetics": "וְהַאד מַע אִנְּהַא כַּאנַת בִּדְהַא תְצַוֵּר פִידְיוֹ לְרֹתֶם אִלִּי כַּאנַת בְּרִחְלֵה בִּ-בְּרִיטַאנְיַא מַע עֵילִתְהַא."
+          },
+          {
+            "hebrew": "\"אז תצלמי אחרי שתחזרי,\" אמר אבא והוכיח שוב שהוא לא מבין כלום.",
+            "arabic": "\"لعد صوري بعد ما ترجعي،\" قال أبوها وأثبت كمان مرة إنه مش فاهم إشي.",
+            "phonetics": "\"לַעַד צַוְּרִי בַּעְד מַא תִרְגַ'עִי,\" קַאל אַבּוּהַא וְאַתְבַּת כַּמַאן מַרַּה אִנּוֹ מִש פַאהֵם אִשִי."
+          },
+          {
+            "hebrew": "גילי לקחה בכעס את הרצועה של ארתור, חיברה אותה בכעס לקולר שלו ויצאה בכעס מהבית.",
+            "arabic": "جيلي أخدت قشاط آرثر وهي معصبة، شبكته بطوقه وهي معصبة وطلعت من البيت وهي معصبة.",
+            "phonetics": "גִ'ילִי אַחְ'דַת קְשַאט אַרְתוּר וְהִיֵּ מְעַצְּבֵּה, שַבְּכַּתוֹ בְּטוֹקוֹ וְהִיֵּ מְעַצְּבֵּה וּטִלְעַת מִן אִלְ-בֵּית וְהִיֵּ מְעַצְּבֵּה."
+          },
+          {
+            "hebrew": "היא הספיקה לשמוע את איתמר מתחיל לבכות אחרי שטרקה את הדלת בעוצמה שהרעידה את כל הבניין. שיבכה.",
+            "arabic": "لحقت تسمع إيتامار ببلش يبكي بعد ما خبطت الباب بقوة رجت كل العمارة. خليه يبكي.",
+            "phonetics": "לִחְקַת תִסְמַע אִיתַמַאר בְּבַּלֵּש יִבְּכִּי בַּעְד מַא חַ'בְּטַת אִלְ-בַּאבּ בְּקֻוֵּה רַגַּ'ת כֻּל אִלְ-עִמַארַה. חַלִּיה יִבְּכִּי."
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "name": "חלק 3: בגינה",
+        "lines": [
+          {
+            "hebrew": "גם ארתור נראה קצת מבוהל כשיצאו לרחוב. גילי משכה אותו בחוסר סבלנות.",
+            "arabic": "حتى آرثر بين عليه خايف شوي لما طلعوا عالشارع. جيلي سحبته بدون صبر.",
+            "phonetics": "חַתַּא אַרְתוּר בַּיַּן עַלֵיה חַ'איֵף שְוַי לַמַּא טִלְעוּ עַ-שַּארֶע. גִ'ילִי סַחְבַּתוֹ בְּדוּן צַבֶּר."
+          },
+          {
+            "hebrew": "היא תכננה טיול קצרצר בגינה שליד הבית ולחזור במהירות לחדר שלה ולמיטה שלה.",
+            "arabic": "كانت مخططة مشوار قصير بالحديقة اللي جنب البيت وترجع بسرعة لغرفتها ولتختها.",
+            "phonetics": "כַּאנַת מְחַ'טְּטַה מִשְוַאר קְצִיר בִּ-לְ-חַדִיקַה אִלִּי גַ'נְבּ אִלְ-בֵּית וְתִרְגַ'ע בְּסֻרְעַה לְעֻ'רְפִתְהַא וְלַ-תַחְ'תְהַא."
+          },
+          {
+            "hebrew": "ארתור ניסה ללכת לכיוון השיחים, תמיד היו שם ריחות מעניינים, אבל גילי רצתה להישאר על השביל המרוצף.",
+            "arabic": "آرثر حاول يروح لجهة الشجرات، دايماً كان في هناك روايح بتهم، بس جيلي كان بدها تضل عالممر المبلط.",
+            "phonetics": "אַרְתוּר חַאוַל יְרוּח לַ-גִ'הַת א-שַּגַ'רַאת, דַאיְמַן כַּאן פִי הְנַאכּ רַוַאיֶח בְּתְהִם, בַּס גִ'ילִי כַּאן בִּדְהַא תְדַל עַ-לְ-מַמַרּ אִלְ-מְבַּלַּט."
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "name": "חלק 4: המפגש עם הדרקון",
+        "lines": [
+          {
+            "hebrew": "עוד מעט תגיע לקצה הגינה ואז תוכל להסתובב ולחזור הביתה. ופתאום... משהו חסם את השביל.",
+            "arabic": "كمان شوي بتوصل لآخر الحديقة وبعدين بتقدر تلف وترجع عالبيت. وفجأة... إشي سكر الممر.",
+            "phonetics": "כַּמַאן שְוַי בְּתוֹצַל לְ-אַאחֶר אִלְ-חַדִיקַה וּבַּעְדֵין בְּתִקְדַר תְלִף וְתִרְגַ'ע עַ-לְ-בֵּית. וּפַגְ'אַה... אִשִי סַכַּּר אִלְ-מַמַר."
+          },
+          {
+            "hebrew": "משהו גדול, משהו עצום ומלחשש. משהו עם זנב וקשקשים. גילי פסעה שלושה צעדים אחורה ונפלה על הישבן, ארתור יילל.",
+            "arabic": "إشي كبير، إشي ضخم وبيفح. إشي إله دنب وحراشف. جيلي رجعت تلت خطوات لورا ووقعت على قعدتها، وآرثر عوى.",
+            "phonetics": "אִשִי כְּבִּיר, אִשִי דַחְם וּבִּיפִח. אִשִי אִלּוֹ דַנַבּ וּחַרַאשֶף. גִ'ילִי רִגְ'עַת תַלַת חֻטְוַאת לַ-וַרַא וּוִקְעַת עַלַא קַעְדִתְהַא, וְאַרְתוּר עַוַּא."
+          },
+          {
+            "hebrew": "\"ששששלום גילי,\" לחשש הדרקון. הקשקשים שלו זהרו בשמש הבוקר. דרקון? בגינת סוקולוב?",
+            "arabic": "\"مـ  ـررحـ  ـبـ  ـا جيلي،\" فح التنين. حراشفه لمعت بشمس الصبح. تنين؟ بحديقة سوكولوف؟",
+            "phonetics": "\"מַـרְـחַـבַּـא גִ'ילִי,\" פַח אִת-תִּנִּין. חַרַאשְפוֹ לִמְעַת בְּשַמְס א-סֻּבֹּח. תִנִּין? בַּחַדִיקַת סוֹקוֹלוֹבּ?"
+          },
+          {
+            "hebrew": "גילי ניסתה לקום אבל נפלה שוב. יכול להיות שחשבה שחבל שלא לקחה את הטלפון איתה.",
+            "arabic": "جيلي حاولت تقوم بس وقعت كمان مرة. بجوز فكرت يا خسارة إنها ما أخدت التلفون معها.",
+            "phonetics": "גִ'ילִי חַאוְלַת תְקוּם בַּס וִקְעַת כַּמַאן מַרַּה. בְּג'וּז פַכַּּרַת יַא חְסַארַה אִנְּהַא מַא אַחְ'דַת אִת-תִּלִפוֹן מַעְהַא."
+          },
+          {
+            "hebrew": "אף אחד לא יאמין לה שראתה דרקון אם לא תצלם אותו. אבל יכול להיות שהיתה מפוחדת מכדי לחשוב על הטלפון שלה.",
+            "arabic": "فش حد رح يصدقها إنها شافت تنين إذا ما صورته. بس بجوز كانت خايفة كتير لدرجة إنها ما قدرت تفكر بتلفونها.",
+            "phonetics": "פִש חַד רַח יְצַדִּקְהַא אִנְּהַא שַאפַת תִנִּין אִזַא מַא צַוַּרַתוֹ. בַּס בְּג'וּז כַּאנַת חַ'איְפֵה כְּתִיר לַדַרַגַ'ת אִנְּהַא מַא קִדְרַת תְפַכֵּּר בְּתִלִפוֹנְהַא."
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "name": "חלק 5: המשימה",
+        "lines": [
+          {
+            "hebrew": "\"מממ…מה אתה עושה כאן?\" שאלה בקול רועד, \"תן לי לעבור.\"",
+            "arabic": "\"شـ  ـشو بتعمل هون؟\" سألته بصوت برجف، \"خليني أمرق.\"",
+            "phonetics": "\"שـ  -- שוּ בְּתִעְמַל הוֹן?\" סַאַלַתוֹ בְּצוֹת בִּרְגֵ'ף, \"חַלִּינִי אַמְרֹק.\""
+          },
+          {
+            "hebrew": "\"בטח, ברורררר, מיד. אבל לפני שאתן לך לעבור תצטרכי לעשות את המשימה.\"",
+            "arabic": "\"أكيد، طبعـ  -اً، هسا. بس قبل ما أخليكي تمرقي رح تضطري تعملي المهمة.\"",
+            "phonetics": "\"אַכִּיד, טַבְּעַـ  -- ן, הַסַּא. בַּס קַבֵּל מַא אַחַלִּיכִּי תִמְרְקִי רַח תִדְטַרִּי תִעְמְלִי אִלְ-מֻהִמֵּה.\""
+          },
+          {
+            "hebrew": "\"משימה?\" גילי הזעיפה פנים. היא שנאה משימות. \"איזו משימה?\" \"משימת הדרקון, כמובן.\"",
+            "arabic": "\"مهمة؟\" جيلي كشرت. هي بتكره المهمات. \"أني مهمة؟\" \"مهمة التنين، طبعاً.\"",
+            "phonetics": "\"מֻהִמֵּה?\" גִ'ילִי כַּשַּרַת. הִיֵּ בְּתִכְּרַה אִלְ-מֻהִמַּאת. \"אַנִי מֻהִמֵּה?\" \"מֻהִמֵּת אִת-תִּנִּין, טַבְּעַן.\""
+          },
+          {
+            "hebrew": "\"ואז תיתן לי לעבור?\" הדרקון כשכש בזנב. \"אוקיי, מה המשימה?\" שאלה גילי וליטפה את ארתור כדי להרגיע אותו.",
+            "arabic": "\"وبعدين بتخليني أمرق؟\" التنين هز دنبه. \"طيب، شو المهمة؟\" سألت جيلي ومسدت على آرثر عشان تروقه.",
+            "phonetics": "\"וּבַּעְדֵין בְּתְחַלִּינִי אַמְרֹק?\" אִת-תִּנִּין הַז דַנַבּוֹ. \"טַיֵּבּ, שוּ אִלְ-מֻהִמֵּה?\" סַאַלַת גִ'ילִי וּמַסַּדַת עַלַא אַרְתוּר עַשַאן תְרַוְּקוֹ."
+          },
+          {
+            "hebrew": "\"תססססתכלי בעצמך,\" אמר הדרקון ואז רבץ על השביל, הניח את סנטרו על האדמה ועצם את עיניו.",
+            "arabic": "\"شـ  ـشوفي لحالك،\" قال التنين وبعدين قعد عالممر، حط دقنه عالأرض وغمض عيونه.",
+            "phonetics": "\"שـ  ـשוּפִי לַחַאלִכּ,\" קַאל אִת-תִּנִּין וּבַּעְדֵין קַעַד עַ-לְ-מַמַר, חַט דַקְנוֹ עַ-לְ-אַרְד וְעַ'מַּד עְיוּנוֹ."
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "name": "חלק 6: חיפוש רמזים בגינה",
+        "lines": [
+          {
+            "hebrew": "גילי כמעט התפוצצה מכעס. היא כבר הסכימה לעשות את המשימה! \"נו מה?\" קראה בקול. הדרקון השמיע רעש מוזר מנחיריו.",
+            "arabic": "جيلي كانت رح تطق من العصبية. هي وافقت تعمل المهمة! \"طب شو؟\" صاحت بصوت عالي. التنين طلع صوت غريب من مناخيره.",
+            "phonetics": "גִ'ילִי כַּאנַת רַח תְטֻק מִן אִלְ-עַצַבִּיֵּה. הִיֵּ וַאפַקַת תִעְמַל אִלְ-מֻהִמֵּה! \"טַבּ שוּ?\" צַאחַת בְּצוֹת עַאלִי. אִת-תִּנִּין טַלַּע צוֹת עַ'רִיבּ מִן מַנַאחִ'ירוֹ."
+          },
+          {
+            "hebrew": "בפעם הראשונה הסתכלה סביבה על הגינה. בקצה הרחוק של הגינה עבד גנן. אולי משימת הדרקון קשורה אליו?",
+            "arabic": "لأول مرة اطلعت حواليها عالحديقة. بآخر الحديقة كان في جنايني بيشتغل. بلكי مهمة التنين إلها دخل فيه؟",
+            "phonetics": "לַ-אַוַּל מַרַּה אִטַּלַּעַת חַוַאלֵיהַא עַ-לְ-חַדִיקַה. בְּאַאחֶר אִלְ-חַדִיקַה כַּאן פִי גְ'נַאיְנִי בִּישְתְעֵ'ל. בַּלְכִּי מֻהִמֵּת אִת-תִּנִּין אִלְהַא דַחַל פִיה?"
+          },
+          {
+            "hebrew": "גילי החליטה לשאול אותו אם הוא צריך עזרה. היא גררה איתה את ארתור שעדיין נראה מבוהל.",
+            "arabic": "جيلي قررت تسأله إذا محتاج مساعدة. جرت معها آرثر اللي لسا مبين عليه خايف.",
+            "phonetics": "גִ'ילִי קַרַּרַת תִסְאַלוֹ אִזַא מִחְתַאג' מֻסַאעַדֵה. גַ'רַּת מַעְהַא אַרְתוּר אִלִּי לִסַּא מְבַּיֵּן עַלֵיה חַ'איֵף."
+          },
+          {
+            "hebrew": "\"סליחה?\" שאלה כשהגיעה לגנן. הוא לא שמע אותה. גילי נופפה מול פניו והוא קפץ בבהלה ואז הוריד אזניות.",
+            "arabic": "\"لو سمحت؟\" سألته لما وصلت للجنايني. هو ما سمعها. جيلي لوحت قدام وجهه وهو نط من الخوفة وبعدين نزل سماعاته.",
+            "phonetics": "\"לַו סַמַחְת?\" סַאַלַתוֹ לַמַּא וִצְלַת לַ-לְ-גְ'נַאיְנִי. הוּ מַא סִמִעְהַא. גִ'ילִי לַוַּחַת קֻדַּאם וִגְ'הוֹ וְהוּ נַט מִן אִלְ-חַ'וְפֵה וּבַּעְדֵין נַזַּל סַמַּאעַאתוֹ."
+          },
+          {
+            "hebrew": "\"אתה צריך עזרה במשהו?\" שאלה. \"ממש נחמד מצידך!\" אמר. \"אני עובד כאן כל הזמן ועוד לא שמעתי שמישהו מציע לעזור לי.\"",
+            "arabic": "\"بدك مساعدة بإشي؟\" سألته. \"عنجد لطيف منك!\" قال. \"أنا بشتغل هون طول الوقت ولسا ما سمعت حد بيعرض يساعدني.\"",
+            "phonetics": "\"בִּדַּכּ מֻסַאעַדֵה בְּאִשִי?\" סַאַלַתוֹ. \"עַנְגַ'ד לַטִיף מִנִּכּ!\" קַאל. \"אַנַא בַּשְתְעֵ'ל הוֹן טוּל אִלְ-וַקְת וְלִסַּא מַא סְמִעְת חַד בִּיעְרֶד יְסַאעִדְנִי.\""
+          },
+          {
+            "hebrew": "הגנן הושיט לה בקבוק ריק. \"את מוכנה למלא אותו בברזיה?\" אוקיי, זאת לא היתה משימה נוראית.",
+            "arabic": "الجنايني مد إيده بقنينة فاضية. \"ممكن تعبيها من الحنفية؟\" طيب، هاي ما كانت مهمة سيئة.",
+            "phonetics": "אִלְ-גְ'נַאיְנִי מַד אִידוֹ בְּקַנִּינֵה פַאדְיֵה. \"מֻמְכִּן תְעַבִּּיהַא מִן אִלְ-כַּלְבּ [מִן אִלְ-חַנַפִיֵּה]?\" [טַיֵּבּ, הַאי מַא כַּאנַת מֻהִמֵּה סַיְּאַה.]"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "name": "חלק 7: המשימות הקטנות שבדרך",
+        "lines": [
+          {
+            "hebrew": "גילי התחילה ללכת לכיוון הברזיה. ארתור עצר כל שתי שניות לרחרוחים. גילי התאפקה לא למשוך אותו.",
+            "arabic": "جيلي بلشت تمشي لجهة الحنفية. آرثر كان يوقف كل ثانيتين ليشمشم. جيلي مسكت حالها عشان ما تسحبه.",
+            "phonetics": "גִ'ילִי בַּלַּשַת תִמְשִי לַ-גִ'הַת אִלְ-חַנַפִיֵּה. אַרְתוּר כַּאן יְוַקֵּף כֻּל תַאנְיְתֵין לַיְשַמְשִם. גִ'ילִי מַסְכַּת חַאלְהַא עַשַאן מַא תִסְחבּוֹ."
+          },
+          {
+            "hebrew": "אבל אז ארתור הסתובב במעגל קטן... והחליט שזה המקום הכי טוב להיות שירותים.",
+            "arabic": "بس بعدين آرثر لف بدائرة صغيرة... وقرر إنو هاد أحسن مكان عشان يعمل حمام.",
+            "phonetics": "בַּס בַּעְדֵין אַרְתוּר לַף בְּדַאאִרַה זְעִ'ירֵה... וְקַרַּר אִנּוֹ הַאד אַחְסַן מַכַּאן עַשַאן יִעְמַל חַמַּאם."
+          },
+          {
+            "hebrew": "גילי חיפשה את השקית כדי לאסוף, אבל אוי! היא לא היתה שם. גילי נאנחה והתחילה ללכת לכיוון המתקן עם השקיות.",
+            "arabic": "جيلي دورت عالكيس عشان تلم، بس أوف! ما كان هناك. جيلي اتنهدت وبلشت تمشي لجهة العلبة تبعت الكياس.",
+            "phonetics": "גִ'ילִי דַוַּרַת עַ-לְ-כִּיס עַשַאן תְלִם, בַּס אוּף! מַא כַּאן הְנַאכּ. גִ'ילִי אִתְנַהַּדַת וּבַּלַּשַת תִמְשִי לַ-גִ'הַת אִלְ-עֻלְבֵּה תַבְּעַת אִלְ-כְּיַאס."
+          },
+          {
+            "hebrew": "כשהגיעו למתקן הוא היה ריק משקיות. גילי הסתכלה סביבה. שקית ניילון ריקה ריחפה על הדשא ברוח הקלה.",
+            "arabic": "لما وصلوا للعلبة كانت فاضية من الكياس. جيلي اطلعت حواليها. كيس نايلون فاضي كان طاير عالعشب بالهوا الخفيف.",
+            "phonetics": "לַמַּא וִצְלוּ לַ-לְ-עֻלְבֵּה כַּאנַת פַאדְיֵה מִן אִלְ-כְּיַאס. גִ'ילִי אִטַּלַּעַת חַוַאלֵיהַא. כִּיס נַאיְלוֹן פַאדִי כַּאן טַאיֵר עַ-לְ-עֻשְבּ בִּ-לְ-הַוַא אִלְ-חַפִיף."
+          },
+          {
+            "hebrew": "גילי התחילה לרדוף אחריה. בזמן שרצו, הבחינה בכמה עטיפות ארטיקים וחטיפים על הדשא. היא הרימה אותם וזרקה לפח הקרוב.",
+            "arabic": "جيلي بلشت تركض وراه. بالوقت اللي ركضوا فيه، انتبهت لكم من ورقة بوظة وشيبس عالعشب. لمّتهم وكبتهم بأقرب حاوية.",
+            "phonetics": "גִ'ילִי בַּלַּשַת תִרְכֹּד וַרַאה. בִּ-לְ-וַקְת אִלִּי רַכַּדוּ פִיה, אִנְתַבְּהַת לַ-כַּם מִן וַרַקַת בּוּזַה וְשִיבְּס עַ-לְ-עֻשְבּ. לַמַּתְהֹם וּכַּבַּּתְהֹם בְּאַקְרַבּ חַאוְיֵה."
+          },
+          {
+            "hebrew": "ואז הצליחה לתפוס את השקית וחזרה לאסוף את מה שארתור השאיר אחריו. קצת מגעיל, אבל אין מה לעשות.",
+            "arabic": "وبعدين قدرت تمسك الكيس ورجعت عشان تلم اللي خلاه آرثر وراه. مقرف شوي، بس شو طالع بالإيد.",
+            "phonetics": "וּבַּעְדֵין קִדְרַת תִמְסִכּ אִלְ-כִּיס וּרִגְ'עַת עַשַאן תְלִם אִלִּי חַלַּאה אַרְתוּר וַרַאה. מֻקְרֵף שְוַי, בַּס שוּ טַאלֵע בִּ-לְ-אִיד."
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "name": "חלק 8: מים לכולם",
+        "lines": [
+          {
+            "hebrew": "ואז נזכרה שנשלחה למשימה חשובה! גילי וארתור הלכו לכיוון הברזיה. ארתור כבר התנשף בכבדות.",
+            "arabic": "وبعدين اتذكرت إنها انبعتت لمهمة مهمة! جيلي وآرثر راحوا لجهة الحنفية. آرثر صار يلهث بتعب.",
+            "phonetics": "וּבַּעְדֵין אִתְזַכַּּרַת אִנְּהַא אִנְבַּעְתַת לַ-מֻהִמֵּה מֻהִמֵּה! גִ'ילִי וְאַרְתוּר רַאחוּ לַ-גִ'הַת אִלְ-חַנַפִיֵּה. אַרְתוּר צַאר יִלְהַת בְּתַעַבּ."
+          },
+          {
+            "hebrew": "\"מסכן, אתה צמא,\" אמרה גילי. ליד הברזיה היא ראתה כלי פלסטיק ריק. היא מילאה אותו במים והניחה בחזרה על הריצפה.",
+            "arabic": "\"يا حرام، إنت عطشان،\" قالت جيلي. جنب الحنفية شافت صحن بلاستيك فاضي. عبته مي وحطته كمان مرة عالأرض.",
+            "phonetics": "\"יַא חַרַאם, אִנְתֵ עַטְשַאן,\" קַאלַת גִ'ילִי. גַ'נְבּ אִלְ-חַנַפִיֵּה שַאפַת צַחֶן בְּלַאסְטִיק פַאדִי. עַבַּּתוֹ מַי וְחַטַּתוֹ כַּמַאן מַרַּה עַ-לְ-אַרְד."
+          },
+          {
+            "hebrew": "ארתור ליקק את כל המים בכלי, וכשגילי מילאה אותו שוב, הוא רוקן אותו בפעם השניה.",
+            "arabic": "آرثر لحس كل الميات اللي بالصحن، ولما جيلي عبته كمان مرة، فضاه للمرة الثانية.",
+            "phonetics": "אַרְתוּר לַחַס כֻּל אִלְ-מַיַּאת אִלִּי בִּ-צַּחֶן, וּלַמַּא גִ'ילִי עַבַּּתוֹ כַּמַאן מַרַּה, פַדַּאה לַ-לְ-מַרַּה אִת-תַּאנְיֵה."
+          },
+          {
+            "hebrew": "גילי הרימה מבט... והבחינה בשלושה חתולים שהתחבאו מארתור בין שיחי הגינה. בטח גם הם צמאים.",
+            "arabic": "جيلي رفعت راسها... وانتبهت لتلت بسس كانوا متخبيين من آرثر بين شجرات الحديقة. أكيد هما كمان عطشانين.",
+            "phonetics": "גִ'ילִי רִפְעַת רַאסְהַא... וְאִנְתַבְּהַת לַ-תַלַת בִּסַס כַּאנוּ מִתְחַבְּיִין מִן אַרְתוּר בֵּין שַגַ'רַאת אִלְ-חַדִיקַה. אַכִּיד הֻמַּה כַּמַאן עַטְשַאנִין."
+          },
+          {
+            "hebrew": "היא מילאה את הכלי במים בפעם השלישית והשאירה אותו ליד הברזיה. ואז הם הלכו ביחד לגנן ונתנו לו את בקבוק המים המלא.",
+            "arabic": "عبت الصحن مي للمرة التالتة وخلته جنب الحنفية. وبعدين راحوا مع بعض للجنايني وأعطوه قنينة المي المليانة.",
+            "phonetics": "עַבַּּת אִצ-צַחֶן מַי לַ-לְ-מַרַּה אִת-תַּאלְתֵה וְחַלַּתוֹ גַ'נְבּ אִלְ-חַנַפִיֵּה. וּבַּעְדֵין רַאחוּ מַע בַּעְד לַ-לְ-גְ'נַאיְנִי וְאַעְטוּה קַנִּינֵת אִלְ-מַי אִלְ-מַלְיַאנֵה."
+          },
+          {
+            "hebrew": "\"וואי,\" אמר הגנן כשהוא מנגב את המצח, \"בדיוק בזמן, תודה!\"",
+            "arabic": "\"واو،\" قال الجنايني وهو بيمسح جبينه، \"بالوقت المناسب، شكراً!\"",
+            "phonetics": "\"וַאו,\" קַאל אִלְ-גְ'נַאיְנִי וְהוּ בְּיִמְסַח גְ'בִּינוֹ, \"בִּ-לְ-וַקְת אִלְ-מֻנַאסֵבּ, שֻכְּרַן!\""
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "name": "חלק 9: סוף המשימה",
+        "lines": [
+          {
+            "hebrew": "פתאום הזנב של ארתור זינק למעלה. \"גילי!\" נשמע קול. אבא נכנס לגינה עם העגלה של איתמר.",
+            "arabic": "فجأة دنب آرثر نط لفوق. \"جيلي!\" انسمع صوت. أبوها دخل عالحديقة مع عرباية إيتامار.",
+            "phonetics": "פַגְ'אַה דַנַבּ אַרְתוּר נַט לַ-פוֹק. \"גִ'ילִי!\" אִנְסַמַע צוֹת. אַבּוּהַא דַחַל עַ-לְ-חַדִיקַה מַע עַרַבַּאיֵת אִיתַמַאר."
+          },
+          {
+            "hebrew": "\"איזה טיול ארוך! כבר דאגתי! לא חזרתם לארוחת הבוקר אז הבאתי אותה לכאן,\" אמר אבא. הוא נתן לגילי חצי פיתה.",
+            "arabic": "\"شو هالمشوار الطويل! انشغل بالي! ما رجعتوا للفطور فجبتها لهون،\" قال أبوها. أعطى جيلي نص كماجة.",
+            "phonetics": "\"שוּ הַ-לְ-מִשְוַאר אִט-טַוִיל! אִנְשַעַ'ל בַּאלִי! מַא רְגִ'עְתוּ לַ-לְ-פְטוּר פַ-גִ'בְּתְהַא לַ-הוֹן,\" קַאל אַבּוּהַא. אַעְטַא גִ'ילִי נֻס כְּמַאגַ'ה."
+          },
+          {
+            "hebrew": "אבא הציע שילכו לכיוון הנדנדות. פתאום גילי נבהלה. הנדנדות היו בדיוק בכיוון של הדרקון!",
+            "arabic": "أبوها اقترح يروحوا لجهة المراجيح. فجأة جيلي خافت. المراجيح كانوا بالزبط بجهة التنين!",
+            "phonetics": "אַבּוּהַא אִקְתַרַח יְרוּחוּ לַ-גִ'הַת אִלְ-מַרַאגִ'יח. פַגְ'אַה גִ'ילִי חַ'אפַת. אִלְ-מַרַאגִ'יח כַּאנוּ בִּ-זַּבְּט בְּגִ'הַת אִת-תִּנִּין!"
+          },
+          {
+            "hebrew": "אבל כשהגיעו לשביל הוא היה פנוי לגמרי. ארתור רחרח בריכוז את המקום שעליו שכב הדרקון, אבל החיה העצומה נעלמה.",
+            "arabic": "بس لما وصلوا للممر كان فاضي عالآخر. آرثر شمشم بتركيز المكان اللي قعد عليه التنين، بس الحيوان الضخم اختفى.",
+            "phonetics": "בַּס לַמַּא וִצְלוּ לַ-לְ-מַמַר כַּאן פַאדִי עַ-לְ-אַאחֶר. אַרְתוּר שַמְשַם בְּתַרְכִּיז אִלְ-מַכַּאן אִלִּי קַעַד עַלֵיה אִת-תִּנִּין, בַּס אִלְ-חַיַוַאן אִד-דַּחְם אִחְתַפַא."
+          },
+          {
+            "hebrew": "גילי פתחה את פיה כדי לענות... לא היה סיכוי שמישהו יאמין לה שפגשה דרקון וקיבלה ממנו משימה.",
+            "arabic": "جيلي فتحت تمها عشان تجاوب... ما كان في أمل إنو حد يصدقها إنها التقت بتنين وأخدت منه مهمة.",
+            "phonetics": "גִ'ילִי פַתְחַת תִמְּהַא עַשַאן תְגַ'אוֶבּ... מַא כַּאן פִי אַמַל אִנּוֹ חַד יְצַדִּקְהַא אִנְּהַא אִלְתַקַת בְּתִנִּין וְאַחְ'דַת מִנּוֹ מֻהִמֵּה."
+          },
+          {
+            "hebrew": "\"יאללה, נלך לנדנדות,\" אמרה והתחילה לרוץ. אבא עשה כאילו הוא מתניע את העגלה – וורום… וכולם רצו אל הנדנדות.",
+            "arabic": "\"يلا، نروح عالمراجيح،\" قالت وبلشت تركض. أبوها عمل حاله بشغل العرباية – فرروم… وكلهم ركضوا عالمراجيح.",
+            "phonetics": "\"יַאללַּה, נְרוּח עַ-לְ-מַרַאגִ'יח,\" קַאלַת וּבַּלַּשַת תִרְכֹּד. אַבּוּהַא עִמֶל חַאלוֹ בְּשַעֵּ'ל אִלְ-עַרַבַּאיֵה – פְרוּם... וְכֻּלְהֹם רַכַּדוּ עַ-לְ-מַרַאגִ'יח."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "game-evening",
+    "title": "משחק בערב",
+    "arabicTitle": "لعبة بالمساء",
+    "description": "סיפור קצר על משחק שחמט בערב והגעה לדירוג 1200.",
+    "parts": [
+      {
+        "id": 1,
+        "name": "חלק 1: המשחק",
+        "lines": [
+          {
+            "hebrew": "בערב, אחרי העבודה, פתחתי את המחשב.",
+            "arabic": "بالمساء، بعد الشغل، فتحت الكمبيوتر.",
+            "phonetics": "בִּ-לְ-מַסַא, בַּעְד א-שֻּעְ'ל, פַתַחְת אִלְ-כֻּמְבְּיוּתַר."
+          },
+          {
+            "hebrew": "נכנסתי לאתר שחמט.קום כדי לשחק משחק ולהירגע.",
+            "arabic": "فتت على موقع شطرنج دوت كوم عشان ألعب جيم وأروّق.",
+            "phonetics": "פֻתֵת עַלַא מַוְקֶע שַטְרַנְג' דוֹט כּוֹם עַשַאן אַלְעַבּ גֵים וְאַרַוֵּק."
+          },
+          {
+            "hebrew": "התחלתי לשחק מול יריב חזק והתרכזתי בכל מהלך.",
+            "arabic": "بلشت ألعب قدام لاعب قوي وركزت بكل حركة.",
+            "phonetics": "בַּלַּשְת אַלְעַבּ קֻדַּאם לַאעֵבּ קַוִי וּרַכַּּזְת בְּכֻּל חַרַכֵּה."
+          },
+          {
+            "hebrew": "המשחק היה צמוד, אבל מצאתי טקטיקה מעולה עם הפרש.",
+            "arabic": "الجيم كان حامي، بس لقيت تكتيك ممتاز بالحصان.",
+            "phonetics": "אִלְ-גֵים כַּאן חַאמִי, בַּס לְקֵית תַכְּתִיכּ מֻמְתַאז בִּ-לְ-חְצַאן."
+          },
+          {
+            "hebrew": "בסוף ניצחתי, וסוף סוף הגעתי לדירוג 1200!",
+            "arabic": "بالآخر فزت، وأخيراً وصلت لتقييم ألف وميتين!",
+            "phonetics": "בִּ-לְ-אַאחֵ'ר פֻזְת, וְאַחִ'ירַן וְצִלְת לַ-תַקְיִים אַלְף וּמִיתֵין!"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bug-fixing",
+    "title": "פתרון תקלה",
+    "arabicTitle": "تصليح مشكلة",
+    "description": "סיפור קצר על פתרון תקלה בפרויקט ודוקר, כתיבת קוד בפייתון וביצוע פוש לגיטהאב.",
+    "parts": [
+      {
+        "id": 1,
+        "name": "חלק 1: התקלה והפתרון",
+        "lines": [
+          {
+            "hebrew": "היום בבוקר ישבתי על פרויקט \"פיקס-איי\" וניסיתי להריץ את הקוד.",
+            "arabic": "اليوم الصبح قعدت على مشروع فيكس-إي آي وحاولت أشغل الكود.",
+            "phonetics": "אִלְיוֹם א-סֻּבֹּח קַעַדְת עַלַא מַשְרוּע פִיכְּס-אֵי אַי וְחַאוַלְת אַשַעֵּ'ל אִלְ-כּוֹד."
+          },
+          {
+            "hebrew": "פתאום שגיאה במסד הנתונים קפצה לי כשניסיתי להרים את הדוקר.",
+            "arabic": "فجأة نطلي غلط بقاعدة البيانات لما حاولت أشغل الدوكر.",
+            "phonetics": "פַגְ'אַה נַטְלִי עַ'לַט בְּקַאעִדַת אִלְ-בַּיַאנַאת לַמַּא חַאוַלְת אַשַעֵּ'ל אִד-דוֹכֶּר."
+          },
+          {
+            "hebrew": "ישבתי כמעט שעתיים לקרוא קבצים בפייתון עד שהבנתי מה הבעיה.",
+            "arabic": "قعدت تقريباً ساعتين أقرأ ملفات بالبايثون لحد ما فهمت شو المشكلة.",
+            "phonetics": "קַעַדְת תַקְרִיבַּן סַאעְתֵין אַקְרַא מַלַפַּאת בִּ-לְ-בַּיְתוֹן לַחַד מַא פְהִמְת שוּ אִלְ-מֻשְכִּלֵה."
+          },
+          {
+            "hebrew": "תיקנתי את הבאג במהירות ובדקתי שהכל עובד כמו שצריך.",
+            "arabic": "صلحت الباج بسرعة وفحصت إنو كل إشي شغال زي ما لازم.",
+            "phonetics": "צַלַּחְת אִלְ-בַּאג בְּסֻרְעַה וּפַחַצְת אִנּוֹ כֻּל אִשִי שַעַּ'אל זַי מַא לַאזֵם."
+          },
+          {
+            "hebrew": "בסוף עשיתי פוש לגיטהאב והעליתי את הכל לשרת של הענן.",
+            "arabic": "بالآخر عملت بوش للجيتهاب ورفعت كل إشي ع سيرفر السحابة.",
+            "phonetics": "בִּ-לְ-אַאחֵ'ר עְמִלְת פּוּש לַ-לְ-גִּיטְהַאבּ וּרַפַעְת כֻּל אִשִי עַ-סֵרְוֶר אִס-סַּחַאבֵּה."
+          }
+        ]
+      }
+    ]
+  }
+];
+
+// ==========================================================================
+// Multi-Story Text Parser (Loads custom stories from my_stories.txt)
+// ==========================================================================
+function parseMultiStoryText(text) {
+  const lines = text.split('\n');
+  const stories = [];
+  
+  let currentStory = null;
+  let currentPart = null;
+  let tempLine = { hebrew: '', arabic: '', phonetics: '' };
+  
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i].trim();
+    if (!rawLine) continue;
+    
+    // Check if we start a new story
+    if (rawLine.includes('===') || rawLine.startsWith('סיפור חדש')) {
+      // Flush previous story if exists
+      if (currentStory) {
+        if (currentPart) {
+          if (tempLine.hebrew || tempLine.arabic) {
+            currentPart.lines.push({
+              hebrew: tempLine.hebrew || tempLine.arabic,
+              arabic: tempLine.arabic || tempLine.hebrew,
+              phonetics: tempLine.phonetics || ''
+            });
+            tempLine = { hebrew: '', arabic: '', phonetics: '' };
+          }
+          currentStory.parts.push(currentPart);
+        }
+        stories.push(currentStory);
+      }
+      
+      // Initialize new story
+      currentStory = {
+        id: `custom-txt-${Date.now()}-${stories.length}`,
+        title: 'סיפור חדש',
+        arabicTitle: 'قصة جديدة',
+        description: 'סיפור שנטען מקובץ הטקסט האישי שלך.',
+        parts: []
+      };
+      currentPart = null;
+      
+      // If the header has a title directly, let's parse it if possible
+      const cleanTitle = rawLine.replace(/===/g, '').trim();
+      if (cleanTitle && cleanTitle.toLowerCase() !== 'סיפור חדש' && cleanTitle.toLowerCase() !== 'new story') {
+        currentStory.title = cleanTitle;
+      }
+      continue;
+    }
+    
+    if (!currentStory) {
+      // If we see text before any explicit story marker, create a default story
+      currentStory = {
+        id: `custom-txt-${Date.now()}-0`,
+        title: 'הסיפורים שלי',
+        arabicTitle: 'قصصي',
+        description: 'סיפורים שנטענו מקובץ הטקסט האישי שלך.',
+        parts: []
+      };
+    }
+    
+    // Parse metadata
+    if (rawLine.startsWith('כותרת עברית:') || rawLine.startsWith('כותרת:')) {
+      currentStory.title = rawLine.split(':')[1].trim();
+      continue;
+    }
+    if (rawLine.startsWith('כותרת ערבית:')) {
+      currentStory.arabicTitle = rawLine.split(':')[1].trim();
+      continue;
+    }
+    if (rawLine.startsWith('תיאור:')) {
+      currentStory.description = rawLine.split(':')[1].trim();
+      continue;
+    }
+    
+    // Check if line indicates a new part
+    if (rawLine.startsWith('חלק') || rawLine.toLowerCase().startsWith('part')) {
+      if (currentPart) {
+        if (tempLine.hebrew || tempLine.arabic) {
+          currentPart.lines.push({
+            hebrew: tempLine.hebrew || tempLine.arabic,
+            arabic: tempLine.arabic || tempLine.hebrew,
+            phonetics: tempLine.phonetics || ''
+          });
+          tempLine = { hebrew: '', arabic: '', phonetics: '' };
+        }
+        currentStory.parts.push(currentPart);
+      }
+      
+      currentPart = {
+        id: currentStory.parts.length + 1,
+        name: rawLine,
+        lines: []
+      };
+      continue;
+    }
+    
+    if (!currentPart) {
+      currentPart = {
+        id: 1,
+        name: 'חלק 1',
+        lines: []
+      };
+    }
+    
+    // Parse individual text elements
+    let isHebrewRawLine = false;
+    if (!rawLine.startsWith('עברית:') && !rawLine.startsWith('ערבית:') && !rawLine.startsWith('הגייה:')) {
+      // Lookahead peek: Check if the next non-empty line starts with 'ערבית:'
+      for (let k = i + 1; k < lines.length; k++) {
+        const nextLine = lines[k].trim();
+        if (!nextLine) continue;
+        if (nextLine.startsWith('ערבית:')) {
+          isHebrewRawLine = true;
+          break;
+        }
+        if (nextLine.startsWith('הגייה:') || nextLine.startsWith('עברית:') || nextLine.includes('===') || nextLine.startsWith('חלק') || nextLine.startsWith('כותרת')) {
+          break;
+        }
+      }
+    }
+
+    if (rawLine.startsWith('עברית:') || isHebrewRawLine) {
+      if (tempLine.hebrew || tempLine.arabic) {
+        currentPart.lines.push({
+          hebrew: tempLine.hebrew,
+          arabic: tempLine.arabic || tempLine.hebrew,
+          phonetics: tempLine.phonetics || ''
+        });
+        tempLine = { hebrew: '', arabic: '', phonetics: '' };
+      }
+      tempLine.hebrew = rawLine.replace('עברית:', '').trim();
+    } else if (rawLine.startsWith('ערבית:')) {
+      tempLine.arabic = rawLine.replace('ערבית:', '').trim();
+    } else if (rawLine.startsWith('הגייה:')) {
+      tempLine.phonetics = rawLine.replace('הגייה:', '').trim();
+    }
+  }
+  
+  // Flush final elements
+  if (currentStory) {
+    if (currentPart) {
+      if (tempLine.hebrew || tempLine.arabic) {
+        currentPart.lines.push({
+          hebrew: tempLine.hebrew || tempLine.arabic,
+          arabic: tempLine.arabic || tempLine.hebrew,
+          phonetics: tempLine.phonetics || ''
+        });
+      }
+      currentStory.parts.push(currentPart);
+    }
+    stories.push(currentStory);
+  }
+  
+  return stories;
+}
+
+// ==========================================================================
+// Story Loading & Rendering
+// ==========================================================================
+async function loadStories() {
+  let stories = [];
+  try {
+    // 1. Fetch built-in story
+    const response = await fetch('stories.json');
+    if (response.ok) {
+      stories = await response.json();
+    } else {
+      throw new Error('Failed to fetch stories database file');
+    }
+  } catch (error) {
+    console.warn('Could not fetch stories.json (running via local file:// protocol?). Using embedded story fallback.', error);
+    stories = JSON.parse(JSON.stringify(DEFAULT_STORY_DATA));
+  }
+  
+  // 1.5. Try to fetch and parse my_stories.txt (Local text-based story importing!)
+  try {
+    const myStoriesResponse = await fetch('my_stories.txt');
+    if (myStoriesResponse.ok) {
+      const myStoriesText = await myStoriesResponse.text();
+      if (myStoriesText.trim()) {
+        const parsedStories = parseMultiStoryText(myStoriesText);
+        if (parsedStories.length > 0) {
+          // Avoid duplicating stories that are already built-in
+          const filteredParsed = parsedStories.filter(ps => 
+            !stories.some(s => s.title.trim().toLowerCase() === ps.title.trim().toLowerCase())
+          );
+          stories = [...stories, ...filteredParsed];
+          console.log(`Loaded ${filteredParsed.length} new custom stories from my_stories.txt!`);
+        }
+      }
+    }
+  } catch (e) {
+    console.log('my_stories.txt not found or inaccessible. Skipping local file import.', e);
+  }
+  
+  // 2. Load custom stories from localStorage
+  const customStoriesData = localStorage.getItem('custom_stories');
+  if (customStoriesData) {
+    try {
+      const customStories = JSON.parse(customStoriesData);
+      const filteredCustom = customStories.filter(cs => 
+        !stories.some(s => s.title.trim().toLowerCase() === cs.title.trim().toLowerCase())
+      );
+      stories = [...stories, ...filteredCustom];
+    } catch (e) {
+      console.error('Error parsing custom stories from cache', e);
+    }
+  }
+  
+  state.stories = stories;
+  populateStorySelect();
+  setActiveStory(0);
+}
+
+function populateStorySelect() {
+  selectStory.innerHTML = '';
+  state.stories.forEach((story, idx) => {
+    const opt = document.createElement('option');
+    opt.value = idx;
+    opt.textContent = `${story.title} (${story.arabicTitle})`;
+    selectStory.appendChild(opt);
+  });
+}
+
+function setActiveStory(index) {
+  if (index < 0 || index >= state.stories.length) return;
+  state.currentStoryIndex = index;
+  state.currentPartIndex = 0;
+  state.currentLineIndex = 0;
+  
+  const story = state.stories[index];
+  
+  // Render part selector slider chips
+  renderPartChips();
+  
+  // Render current line
+  updateUIForCurrentLine();
+  
+  // Render scroll lines view
+  renderScrollStoryLines();
+  
+  // Stop speaking
+  stopSpeaking();
+}
+
+function renderPartChips() {
+  partSelectorArea.innerHTML = '';
+  const story = state.stories[state.currentStoryIndex];
+  
+  story.parts.forEach((part, idx) => {
+    const chip = document.createElement('button');
+    chip.className = `part-chip ${idx === state.currentPartIndex ? 'active' : ''}`;
+    chip.textContent = part.name;
+    chip.addEventListener('click', () => {
+      selectStoryPart(idx);
+    });
+    partSelectorArea.appendChild(chip);
+  });
+}
+
+function selectStoryPart(partIndex) {
+  stopSpeaking();
+  state.currentPartIndex = partIndex;
+  state.currentLineIndex = 0;
+  
+  // Update chips CSS
+  const chips = partSelectorArea.querySelectorAll('.part-chip');
+  chips.forEach((c, idx) => {
+    if (idx === partIndex) c.classList.add('active');
+    else c.classList.remove('active');
+  });
+  
+  // Render current line
+  updateUIForCurrentLine();
+  
+  // Render scroll view (since parts changed)
+  renderScrollStoryLines();
+}
+
+function getStoryLineCount() {
+  const story = state.stories[state.currentStoryIndex];
+  let total = 0;
+  story.parts.forEach(p => {
+    total += p.lines.length;
+  });
+  return total;
+}
+
+function getGlobalLineIndex() {
+  const story = state.stories[state.currentStoryIndex];
+  let totalIndex = 0;
+  for (let p = 0; p < state.currentPartIndex; p++) {
+    totalIndex += story.parts[p].lines.length;
+  }
+  return totalIndex + state.currentLineIndex;
+}
+
+function updateUIForCurrentLine() {
+  const story = state.stories[state.currentStoryIndex];
+  const part = story.parts[state.currentPartIndex];
+  const line = part.lines[state.currentLineIndex];
+  
+  if (!line) return;
+  
+  // Update focus card contents
+  cardArabic.textContent = line.arabic;
+  cardPhonetics.textContent = line.phonetics;
+  cardHebrew.textContent = line.hebrew;
+  cardPartBadge.textContent = part.name;
+  
+  // Remove any speaking highlight states
+  cardArabic.classList.remove('speaking');
+  cardHebrew.classList.remove('speaking-hebrew');
+  
+  // Update header and progress tracker
+  currentPartNameLabel.textContent = `${story.title} - ${part.name}`;
+  
+  const currentGlobal = getGlobalLineIndex() + 1;
+  const totalLines = getStoryLineCount();
+  progressTextLabel.textContent = `שורה ${currentGlobal} מתוך ${totalLines}`;
+  
+  const percentage = (currentGlobal / totalLines) * 100;
+  progressFill.style.width = `${percentage}%`;
+  
+  // Update active item in list view
+  updateScrollStoryActiveItem();
+}
+
+function renderScrollStoryLines() {
+  storyLinesList.innerHTML = '';
+  const story = state.stories[state.currentStoryIndex];
+  const part = story.parts[state.currentPartIndex];
+  
+  part.lines.forEach((line, idx) => {
+    const item = document.createElement('div');
+    item.className = `scroll-line-item ${idx === state.currentLineIndex ? 'active' : ''}`;
+    item.id = `scroll-line-${idx}`;
+    item.innerHTML = `
+      <div class="scroll-ar" dir="rtl" lang="ar">${line.arabic}</div>
+      <div class="scroll-ph" dir="rtl" style="display: ${state.phoneticsVisible ? 'block' : 'none'}">${line.phonetics}</div>
+      <div class="scroll-he" dir="rtl" style="display: ${state.hebrewVisible ? 'block' : 'none'}">${line.hebrew}</div>
+    `;
+    
+    // Jump directly to that line when clicked
+    item.addEventListener('click', () => {
+      stopSpeaking();
+      state.currentLineIndex = idx;
+      updateUIForCurrentLine();
+      speakCurrentLine();
+    });
+    
+    storyLinesList.appendChild(item);
+  });
+  
+  updateScrollStoryActiveItem();
+}
+
+function updateScrollStoryActiveItem() {
+  const items = storyLinesList.querySelectorAll('.scroll-line-item');
+  items.forEach((item, idx) => {
+    if (idx === state.currentLineIndex) {
+      item.classList.add('active');
+      // Smooth center active item inside scroll container
+      if (state.viewMode === 'scroll') {
+        item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } else {
+      item.classList.remove('active');
+    }
+  });
+}
+
+// ==========================================================================
+// Speech Player Logic (Dual Mode TTS Alternator)
+// ==========================================================================
+function speakCurrentLine() {
+  stopSpeaking();
+  
+  const story = state.stories[state.currentStoryIndex];
+  const part = story.parts[state.currentPartIndex];
+  const line = part.lines[state.currentLineIndex];
+  
+  if (!line) return;
+  
+  state.isPlaying = true;
+  updatePlayButtonUI();
+  
+  // Step 1: Speak Arabic
+  speakArabic(line.arabic, () => {
+    // Check if we are still playing and not canceled
+    if (!state.isPlaying) return;
+    
+    if (state.playMode === 'study') {
+      // Step 2: Speak Hebrew (Study Mode only)
+      // Visual transition gap
+      state.isWaitingTimeout = setTimeout(() => {
+        if (!state.isPlaying) return;
+        
+        speakHebrew(line.hebrew, () => {
+          if (!state.isPlaying) return;
+          // Step 3: Autoplay Advance
+          handleAutoplayAdvance();
+        });
+      }, 500);
+    } else {
+      // Listening Mode: Arabic only - transition straight to autoplay advance
+      handleAutoplayAdvance();
+    }
+  });
+}
+
+function speakArabic(text, callback) {
+  if (!('speechSynthesis' in window)) return;
+  
+  window.speechSynthesis.cancel();
+  
+  // Remove vowels/diacritics if TTS struggles (Web Speech API is usually fine, but clean text can help)
+  // Clean standard spoken Arabic is usually pronounced nicely when marked as ar-EG or ar-SA
+  const utterance = new SpeechSynthesisUtterance(text);
+  
+  // Set voice if chosen
+  if (state.selectedArabicVoiceName) {
+    const v = state.voices.find(voice => voice.name === state.selectedArabicVoiceName);
+    if (v) utterance.voice = v;
+  }
+  
+  utterance.lang = 'ar-EG'; // Egpytian/Levantine accent approximation
+  utterance.rate = state.speechSpeed;
+  
+  utterance.onstart = () => {
+    cardArabic.classList.add('speaking');
+    // Highlight scrolling item
+    const activeItem = document.getElementById(`scroll-line-${state.currentLineIndex}`);
+    if (activeItem) {
+      activeItem.querySelector('.scroll-ar').style.color = 'var(--primary)';
+    }
+  };
+  
+  utterance.onend = () => {
+    cardArabic.classList.remove('speaking');
+    const activeItem = document.getElementById(`scroll-line-${state.currentLineIndex}`);
+    if (activeItem) {
+      activeItem.querySelector('.scroll-ar').style.color = '';
+    }
+    if (callback) callback();
+  };
+  
+  utterance.onerror = (e) => {
+    console.error('Arabic Synthesis error:', e);
+    cardArabic.classList.remove('speaking');
+    if (callback) callback();
+  };
+  
+  state.currentUtterance = utterance;
+  window.speechSynthesis.speak(utterance);
+}
+
+function speakHebrew(text, callback) {
+  if (!('speechSynthesis' in window)) return;
+  
+  const utterance = new SpeechSynthesisUtterance(text);
+  
+  if (state.selectedHebrewVoiceName) {
+    const v = state.voices.find(voice => voice.name === state.selectedHebrewVoiceName);
+    if (v) utterance.voice = v;
+  }
+  
+  utterance.lang = 'he-IL';
+  utterance.rate = state.speechSpeed;
+  
+  utterance.onstart = () => {
+    cardHebrew.classList.add('speaking-hebrew');
+    const activeItem = document.getElementById(`scroll-line-${state.currentLineIndex}`);
+    if (activeItem) {
+      activeItem.querySelector('.scroll-he').style.color = 'var(--secondary)';
+    }
+  };
+  
+  utterance.onend = () => {
+    cardHebrew.classList.remove('speaking-hebrew');
+    const activeItem = document.getElementById(`scroll-line-${state.currentLineIndex}`);
+    if (activeItem) {
+      activeItem.querySelector('.scroll-he').style.color = '';
+    }
+    if (callback) callback();
+  };
+  
+  utterance.onerror = (e) => {
+    console.error('Hebrew Synthesis error:', e);
+    cardHebrew.classList.remove('speaking-hebrew');
+    if (callback) callback();
+  };
+  
+  state.currentUtterance = utterance;
+  window.speechSynthesis.speak(utterance);
+}
+
+function stopSpeaking() {
+  state.isPlaying = false;
+  updatePlayButtonUI();
+  
+  if (state.isWaitingTimeout) {
+    clearTimeout(state.isWaitingTimeout);
+    state.isWaitingTimeout = null;
+  }
+  
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+  
+  cardArabic.classList.remove('speaking');
+  cardHebrew.classList.remove('speaking-hebrew');
+}
+
+function handleAutoplayAdvance() {
+  if (!state.autoAdvance || !state.isPlaying) return;
+  
+  state.isWaitingTimeout = setTimeout(() => {
+    if (!state.isPlaying) return;
+    
+    const story = state.stories[state.currentStoryIndex];
+    const part = story.parts[state.currentPartIndex];
+    
+    if (state.currentLineIndex + 1 < part.lines.length) {
+      // Advance to next line in active part
+      state.currentLineIndex++;
+      updateUIForCurrentLine();
+      speakCurrentLine();
+    } else if (state.currentPartIndex + 1 < story.parts.length) {
+      // Advance to next part of active story
+      showToast(`מעבר ל${story.parts[state.currentPartIndex + 1].name} 🚀`);
+      selectStoryPart(state.currentPartIndex + 1);
+      speakCurrentLine();
+    } else {
+      // END OF STORY REACHED!
+      // CRITICAL USER REQUIREMENT:
+      // "ואז קורא שוב את כל הסיפור אבל רק בערבית בלי תרגום ."
+      // (When story ends, reads entire story again but ONLY in Arabic without translation)
+      
+      if (state.playMode === 'study') {
+        showToast('סיים את הסיפור! כעת קורא את כל הסיפור מחדש בערבית בלבד! 🎧', 4000);
+        
+        // Auto transition to Listening mode (Arabic only)
+        state.playMode = 'listening';
+        updateModeSwitcherButtons();
+        
+        // Reset story indices to beginning
+        state.currentPartIndex = 0;
+        state.currentLineIndex = 0;
+        
+        renderPartChips();
+        renderScrollStoryLines();
+        updateUIForCurrentLine();
+        
+        state.isWaitingTimeout = setTimeout(() => {
+          speakCurrentLine();
+        }, 1500);
+        
+      } else {
+        // Already was in listening mode, story completed fully
+        showToast('מזל טוב! סיימת להקשיב לכל הסיפור בערבית מדוברת! 🎉', 5000);
+        stopSpeaking();
+        state.currentLineIndex = 0;
+        state.currentPartIndex = 0;
+        renderPartChips();
+        renderScrollStoryLines();
+        updateUIForCurrentLine();
+      }
+    }
+  }, 1200); // Gentle gap between sentences
+}
+
+function updatePlayButtonUI() {
+  if (state.isPlaying) {
+    playIcon.style.display = 'none';
+    pauseIcon.style.display = 'block';
+  } else {
+    playIcon.style.display = 'block';
+    pauseIcon.style.display = 'none';
+  }
+}
+
+function showToast(message, duration = 3000) {
+  const toast = document.createElement('div');
+  toast.style.position = 'fixed';
+  toast.style.bottom = '150px';
+  toast.style.left = '50%';
+  toast.style.transform = 'translateX(-50%)';
+  toast.style.background = 'rgba(15, 23, 42, 0.95)';
+  toast.style.color = '#fff';
+  toast.style.padding = '12px 24px';
+  toast.style.borderRadius = '30px';
+  toast.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5), 0 0 15px var(--primary-glow)';
+  toast.style.border = '1px solid var(--primary)';
+  toast.style.zIndex = '9999';
+  toast.style.fontFamily = 'Heebo, sans-serif';
+  toast.style.fontSize = '13px';
+  toast.style.fontWeight = '700';
+  toast.style.textAlign = 'center';
+  toast.style.animation = 'toastAppear 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+  
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  const style = document.createElement('style');
+  style.innerHTML = `
+    @keyframes toastAppear {
+      from { bottom: 120px; opacity: 0; }
+      to { bottom: 150px; opacity: 1; }
+    }
+  `;
+  document.head.appendChild(style);
+  
+  setTimeout(() => {
+    toast.style.transition = 'all 0.5s ease';
+    toast.style.opacity = '0';
+    toast.style.bottom = '180px';
+    setTimeout(() => {
+      toast.remove();
+      style.remove();
+    }, 500);
+  }, duration);
+}
+
+// ==========================================================================
+// Event Binding & User Interaction Controllers
+// ==========================================================================
+function bindEvents() {
+  // Story Select change
+  selectStory.addEventListener('change', (e) => {
+    setActiveStory(parseInt(e.target.value));
+  });
+
+  // Play / Pause Toggle
+  btnPlayPause.addEventListener('click', () => {
+    if (state.isPlaying) {
+      stopSpeaking();
+    } else {
+      speakCurrentLine();
+    }
+  });
+
+  // Next / Prev actions
+  btnNext.addEventListener('click', () => {
+    stopSpeaking();
+    const story = state.stories[state.currentStoryIndex];
+    const part = story.parts[state.currentPartIndex];
+    
+    if (state.currentLineIndex + 1 < part.lines.length) {
+      state.currentLineIndex++;
+      updateUIForCurrentLine();
+    } else if (state.currentPartIndex + 1 < story.parts.length) {
+      selectStoryPart(state.currentPartIndex + 1);
+    } else {
+      showToast('זהו סוף הסיפור! 🏁');
+    }
+  });
+
+  btnPrev.addEventListener('click', () => {
+    stopSpeaking();
+    
+    if (state.currentLineIndex > 0) {
+      state.currentLineIndex--;
+      updateUIForCurrentLine();
+    } else if (state.currentPartIndex > 0) {
+      // Go to end of previous part
+      const story = state.stories[state.currentStoryIndex];
+      const prevPartIndex = state.currentPartIndex - 1;
+      const prevPartLinesCount = story.parts[prevPartIndex].lines.length;
+      
+      selectStoryPart(prevPartIndex);
+      state.currentLineIndex = prevPartLinesCount - 1;
+      updateUIForCurrentLine();
+    } else {
+      showToast('זוהי תחילת הסיפור! 🏁');
+    }
+  });
+
+  // Replay Story fully
+  btnReplayStory.addEventListener('click', () => {
+    stopSpeaking();
+    state.currentPartIndex = 0;
+    state.currentLineIndex = 0;
+    renderPartChips();
+    renderScrollStoryLines();
+    updateUIForCurrentLine();
+    speakCurrentLine();
+  });
+
+  // Autoplay Switch
+  btnAutoplay.addEventListener('click', () => {
+    state.autoAdvance = !state.autoAdvance;
+    btnAutoplay.classList.toggle('active', state.autoAdvance);
+    showToast(state.autoAdvance ? 'מעבר אוטומטי פעיל' : 'מעבר אוטומטי מבוטל');
+  });
+
+  // Speech Speed Slider
+  speechSpeedSlider.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    state.speechSpeed = val;
+    speedDisplay.textContent = `${val.toFixed(1)}x`;
+  });
+
+  speechSpeedSlider.addEventListener('change', () => {
+    // If speaking, restart to apply new speed
+    if (state.isPlaying) {
+      speakCurrentLine();
+    }
+  });
+
+  // Single card button speak line
+  speakLineBtn.addEventListener('click', () => {
+    speakCurrentLine();
+  });
+
+  // Study / Listening modes switcher
+  modeStudy.addEventListener('click', () => {
+    stopSpeaking();
+    state.playMode = 'study';
+    updateModeSwitcherButtons();
+    showToast('הופעל מצב לימוד: שורה בערבית ואז בעברית 📖');
+  });
+
+  modeListening.addEventListener('click', () => {
+    stopSpeaking();
+    state.playMode = 'listening';
+    updateModeSwitcherButtons();
+    showToast('הופעל מצב הקשבה: ערבית בלבד 🎧');
+  });
+
+  // Card / Scroll views switcher
+  viewCard.addEventListener('click', () => {
+    state.viewMode = 'card';
+    viewCard.classList.add('active');
+    viewScroll.classList.remove('active');
+    viewerViewport.className = 'viewer-viewport card-mode';
+    focusCardView.style.display = 'flex';
+    fullStoryScrollView.style.display = 'none';
+  });
+
+  viewScroll.addEventListener('click', () => {
+    state.viewMode = 'scroll';
+    viewScroll.classList.add('active');
+    viewCard.classList.remove('active');
+    viewerViewport.className = 'viewer-viewport list-mode';
+    focusCardView.style.display = 'none';
+    fullStoryScrollView.style.display = 'block';
+    
+    // Auto-scroll list to active row
+    updateScrollStoryActiveItem();
+  });
+
+  // Display toggles
+  togglePhoneticsVisible.addEventListener('change', (e) => {
+    state.phoneticsVisible = e.target.checked;
+    localStorage.setItem('display_phonetics', e.target.checked);
+    applyDisplayFilters();
+  });
+
+  toggleHebrewVisible.addEventListener('change', (e) => {
+    state.hebrewVisible = e.target.checked;
+    localStorage.setItem('display_hebrew', e.target.checked);
+    applyDisplayFilters();
+  });
+
+  // Theme switch
+  themeToggleBtn.addEventListener('click', toggleTheme);
+
+  // Settings Modal controls
+  settingsBtn.addEventListener('click', () => {
+    settingsModal.style.display = 'block';
+  });
+
+  importBtn.addEventListener('click', () => {
+    importModal.style.display = 'block';
+  });
+
+  closeModals.forEach(btn => {
+    btn.addEventListener('click', () => {
+      settingsModal.style.display = 'none';
+      importModal.style.display = 'none';
+    });
+  });
+
+  window.addEventListener('click', (e) => {
+    if (e.target === settingsModal) settingsModal.style.display = 'none';
+    if (e.target === importModal) importModal.style.display = 'none';
+  });
+
+  saveSettingsBtn.addEventListener('click', () => {
+    state.selectedArabicVoiceName = voiceSelectArabic.value;
+    state.selectedHebrewVoiceName = voiceSelectHebrew.value;
+    localStorage.setItem('tts_arabic_voice', voiceSelectArabic.value);
+    localStorage.setItem('tts_hebrew_voice', voiceSelectHebrew.value);
+    
+    settingsModal.style.display = 'none';
+    showToast('ההגדרות נשמרו בהצלחה! ⚙️');
+    
+    if (state.isPlaying) speakCurrentLine();
+  });
+
+  // Keyboard Shortcuts (Arrow keys & Spacebar)
+  document.addEventListener('keydown', (e) => {
+    // Avoid triggering while typing in textfields
+    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+      return;
+    }
+    
+    if (e.code === 'Space') {
+      e.preventDefault();
+      btnPlayPause.click();
+    } else if (e.code === 'ArrowLeft') {
+      // Since it is RTL Hebrew, ArrowLeft is NEXT line
+      e.preventDefault();
+      btnNext.click();
+    } else if (e.code === 'ArrowRight') {
+      // ArrowRight is PREVIOUS line
+      e.preventDefault();
+      btnPrev.click();
+    }
+  });
+
+  // Custom Story Submitter Import Handler
+  submitImportBtn.addEventListener('click', handleCustomStoryImport);
+}
+
+function updateModeSwitcherButtons() {
+  if (state.playMode === 'study') {
+    modeStudy.classList.add('active');
+    modeListening.classList.remove('active');
+  } else {
+    modeListening.classList.add('active');
+    modeStudy.classList.remove('active');
+  }
+}
+
+// ==========================================================================
+// Custom Text Parser (Story Importer)
+// ==========================================================================
+function handleCustomStoryImport() {
+  const text = importTextarea.value.trim();
+  const title = importTitle.value.trim();
+  const arTitle = importArabicTitle.value.trim() || 'قصة مخصصة';
+  
+  if (!text) {
+    alert('אנא הזן את תוכן הסיפור.');
+    return;
+  }
+  
+  if (!title) {
+    alert('אנא הזן כותרת לסיפור שלך.');
+    return;
+  }
+
+  // Parse custom format
+  const parsedParts = parseCustomStoryText(text);
+  
+  if (parsedParts.length === 0 || parsedParts[0].lines.length === 0) {
+    alert('לא הצלחנו לזהות שורות בסיפור. אנא ודא שהקובץ תואם למבנה הנדרש:\nעברית: [תוכן]\nערבית: [תוכן]\nהגייה: [תוכן]');
+    return;
+  }
+
+  // Create new story structure
+  const customStory = {
+    id: `custom-${Date.now()}`,
+    title: title,
+    arabicTitle: arTitle,
+    description: 'סיפור מיובא על ידי המשתמש.',
+    parts: parsedParts
+  };
+
+  // Save to state & localStorage
+  state.stories.push(customStory);
+  
+  // Get all custom stories from localStorage to append
+  let customStoriesList = [];
+  const existingCustom = localStorage.getItem('custom_stories');
+  if (existingCustom) {
+    try {
+      customStoriesList = JSON.parse(existingCustom);
+    } catch(e) {
+      customStoriesList = [];
+    }
+  }
+  
+  customStoriesList.push(customStory);
+  localStorage.setItem('custom_stories', JSON.stringify(customStoriesList));
+  
+  // Reload select box and trigger gameplay
+  populateStorySelect();
+  selectStory.value = state.stories.length - 1;
+  setActiveStory(state.stories.length - 1);
+  
+  // Clear textarea & Close Modal
+  importTextarea.value = '';
+  importTitle.value = '';
+  importArabicTitle.value = '';
+  importModal.style.display = 'none';
+  
+  showToast('הסיפור האישי שלך נטען והותקן בהצלחה! 🎉');
+}
+
+/**
+ * Parses user text with Hebrew/Arabic/Phonetics line descriptors.
+ * Supports splitting into parts dynamically when encountering "חלק [מספר]" lines.
+ */
+function parseCustomStoryText(text) {
+  const lines = text.split('\n');
+  const parts = [];
+  
+  let currentPartIndex = 1;
+  let currentPart = {
+    id: 1,
+    name: 'חלק 1: התחלה',
+    lines: []
+  };
+  
+  let tempLine = { hebrew: '', arabic: '', phonetics: '' };
+  
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i].trim();
+    if (!rawLine) continue;
+    
+    // Check if line indicates a new part: e.g. "חלק 2:" or "חלק 2"
+    if (rawLine.startsWith('חלק') || rawLine.toLowerCase().startsWith('part')) {
+      // If active part has lines, push it before creating a new one
+      if (currentPart.lines.length > 0 || tempLine.hebrew || tempLine.arabic) {
+        // Flush any half-parsed line
+        if (tempLine.hebrew || tempLine.arabic) {
+          currentPart.lines.push({
+            hebrew: tempLine.hebrew || tempLine.arabic,
+            arabic: tempLine.arabic || tempLine.hebrew,
+            phonetics: tempLine.phonetics || ''
+          });
+          tempLine = { hebrew: '', arabic: '', phonetics: '' };
+        }
+        parts.push(currentPart);
+      }
+      
+      currentPartIndex++;
+      currentPart = {
+        id: currentPartIndex,
+        name: rawLine,
+        lines: []
+      };
+      continue;
+    }
+    
+    // Parse individual text elements
+    if (rawLine.startsWith('עברית:')) {
+      // Flush previous parsed chunk if we see a new Hebrew line starting
+      if (tempLine.hebrew || tempLine.arabic) {
+        currentPart.lines.push({
+          hebrew: tempLine.hebrew,
+          arabic: tempLine.arabic || tempLine.hebrew,
+          phonetics: tempLine.phonetics || ''
+        });
+        tempLine = { hebrew: '', arabic: '', phonetics: '' };
+      }
+      tempLine.hebrew = rawLine.replace('עברית:', '').trim();
+    } else if (rawLine.startsWith('ערבית:')) {
+      tempLine.arabic = rawLine.replace('ערבית:', '').trim();
+    } else if (rawLine.startsWith('הגייה:')) {
+      tempLine.phonetics = rawLine.replace('הגייה:', '').trim();
+    }
+  }
+  
+  // Flush final remaining block
+  if (tempLine.hebrew || tempLine.arabic) {
+    currentPart.lines.push({
+      hebrew: tempLine.hebrew || tempLine.arabic,
+      arabic: tempLine.arabic || tempLine.hebrew,
+      phonetics: tempLine.phonetics || ''
+    });
+  }
+  
+  if (currentPart.lines.length > 0) {
+    parts.push(currentPart);
+  }
+  
+  return parts;
+}
+
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./service-worker.js')
+        .then((reg) => console.log('Service Worker registered successfully!', reg.scope))
+        .catch((err) => console.warn('Service Worker registration failed:', err));
+    });
+  }
+}
+

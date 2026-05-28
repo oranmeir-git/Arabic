@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#123024" />
+      <stop offset="100%" stop-color="#0a1410" />
+    </linearGradient>
+    <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe699" />
+      <stop offset="50%" stop-color="#d4af37" />
+      <stop offset="100%" stop-color="#aa7c11" />
+    </linearGradient>
+  </defs>
+  <!-- Background circle with smooth border -->
+  <circle cx="256" cy="256" r="240" fill="url(#bg-grad)" stroke="url(#gold-grad)" stroke-width="8" />
+  
+  <!-- Headphones arc -->
+  <path d="M 140 280 A 120 120 0 0 1 372 280" fill="none" stroke="url(#gold-grad)" stroke-width="20" stroke-linecap="round" />
+  <!-- Headphones ear pads -->
+  <rect x="110" y="250" width="40" height="80" rx="20" fill="url(#gold-grad)" />
+  <rect x="362" y="250" width="40" height="80" rx="20" fill="url(#gold-grad)" />
+  
+  <!-- Opened book pages -->
+  <path d="M 256 340 C 230 300, 180 300, 160 300 L 160 210 C 180 210, 230 210, 256 240 C 282 210, 332 210, 352 210 L 352 300 C 332 300, 282 300, 256 340 Z" fill="#ffffff" opacity="0.9" />
+  <!-- Book spine/center -->
+  <line x1="256" y1="240" x2="256" y2="340" stroke="url(#gold-grad)" stroke-width="6" />
+  
+  <!-- Golden sparkles/traditional symbols -->
+  <path d="M 230 150 Q 256 120 282 150 Q 256 180 230 150 Z" fill="url(#gold-grad)" />
+  <!-- Small magic sparkles -->
+  <path d="M 330 140 L 335 150 L 345 155 L 335 160 L 330 170 L 325 160 L 315 155 L 325 150 Z" fill="url(#gold-grad)" />
+  <path d="M 180 160 L 183 167 L 190 170 L 183 173 L 180 180 L 177 173 L 170 170 L 177 167 Z" fill="url(#gold-grad)" />
+</svg>
