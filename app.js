@@ -1917,7 +1917,7 @@ function speakViaElevenLabs(text, voiceId, callback) {
     if (activeItem) {
       activeItem.querySelector('.scroll-ar').style.color = '';
     }
-    showToast('מנוע ElevenLabs נכשל. עובר למנוע מקומי...', 3000);
+    showToast(`שגיאת ElevenLabs: ${err.message || err}. עובר למנוע מקומי...`, 5000);
     speakLocalArabicFallback(text, callback);
   });
 }
@@ -2527,7 +2527,7 @@ function registerServiceWorker() {
   if ('caches' in window) {
     caches.keys().then((names) => {
       names.forEach((name) => {
-        if (name !== 'hakawati-cache-v12') {
+        if (name !== 'hakawati-cache-v13') {
           caches.delete(name).then(() => console.log(`Cleared old cache name: ${name}`));
         }
       });
