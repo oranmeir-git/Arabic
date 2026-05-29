@@ -27,7 +27,12 @@ let state = {
   
   // Track active utterance to cancel
   currentUtterance: null,
-  isWaitingTimeout: null
+  isWaitingTimeout: null,
+  
+  // ElevenLabs integration
+  elevenlabsKey: '',
+  elevenlabsVoiceId: '21m00Tcm4TlvDq8ikWAM',
+  audioElement: null
 };
 
 // DOM Elements
@@ -81,6 +86,8 @@ const voiceSelectArabic = document.getElementById('voice-select-arabic');
 const voiceSelectHebrew = document.getElementById('voice-select-hebrew');
 const saveSettingsBtn = document.getElementById('save-settings');
 const ttsWarning = document.getElementById('tts-warning');
+const elevenlabsKeyInput = document.getElementById('settings-elevenlabs-key');
+const elevenlabsVoiceInput = document.getElementById('settings-elevenlabs-voice');
 
 // Importer elements
 const importTitle = document.getElementById('import-title');
@@ -224,6 +231,14 @@ function populateVoiceSelectors() {
     state.selectedHebrewVoiceName = savedHe;
     voiceSelectHebrew.value = savedHe;
   }
+
+  // Load ElevenLabs settings
+  const savedElKey = localStorage.getItem('elevenlabs_key') || '';
+  const savedElVoice = localStorage.getItem('elevenlabs_voice') || '21m00Tcm4TlvDq8ikWAM';
+  state.elevenlabsKey = savedElKey;
+  state.elevenlabsVoiceId = savedElVoice;
+  if (elevenlabsKeyInput) elevenlabsKeyInput.value = savedElKey;
+  if (elevenlabsVoiceInput) elevenlabsVoiceInput.value = savedElVoice;
 }
 
 // ==========================================================================
@@ -1796,34 +1811,138 @@ function injectPauses(text, speed) {
 }
 
 function speakArabic(text, callback) {
-  if (!('speechSynthesis' in window)) return;
+  // If ElevenLabs API Key is configured, use it!
+  if (state.elevenlabsKey && state.elevenlabsKey.trim() !== '') {
+    speakViaElevenLabs(text, state.elevenlabsVoiceId, callback);
+    return;
+  }
   
-  window.speechSynthesis.cancel();
+  // Otherwise, use the local browser fallback
+  speakLocalArabicFallback(text, callback);
+}
+
+function speakViaElevenLabs(text, voiceId, callback) {
+  // Stop any active ElevenLabs audio element playing
+  if (state.audioElement) {
+    state.audioElement.pause();
+    state.audioElement.src = '';
+    state.audioElement = null;
+  }
+  
+  cardArabic.classList.add('speaking');
+  const activeItem = document.getElementById(`scroll-line-${state.currentLineIndex}`);
+  if (activeItem) {
+    activeItem.querySelector('.scroll-ar').style.color = 'var(--primary)';
+  }
+  
+  const cleanVoiceId = (voiceId || '').trim() || '21m00Tcm4TlvDq8ikWAM';
   
   // Format the Arabic text specifically for spoken Palestinian Ammiya
   const spokenText = formatSpokenArabic(text);
   
-  // Inject pauses if speed is slow to make intervals between words proportional
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${cleanVoiceId}`;
+  
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'xi-api-key': state.elevenlabsKey.trim()
+    },
+    body: JSON.stringify({
+      text: spokenText,
+      model_id: 'eleven_multilingual_v2', // Best multi-lingual conversational model
+      voice_settings: {
+        stability: 0.45,       // Emotive speech dialect fluctuations
+        similarity_boost: 0.85,
+        style: 0.05,
+        use_speaker_boost: true
+      }
+    })
+  })
+  .then(async (response) => {
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`ElevenLabs API Error (${response.status}): ${errText}`);
+    }
+    return response.blob();
+  })
+  .then((blob) => {
+    // If the user clicked Pause/Stop while we were downloading, abort
+    if (!state.isPlaying) {
+      cardArabic.classList.remove('speaking');
+      if (activeItem) activeItem.querySelector('.scroll-ar').style.color = '';
+      return;
+    }
+    
+    const audioUrl = URL.createObjectURL(blob);
+    const audio = new Audio(audioUrl);
+    
+    // Support speech speed scaling! 
+    audio.playbackRate = state.speechSpeed;
+    
+    audio.onended = () => {
+      cardArabic.classList.remove('speaking');
+      if (activeItem) {
+        activeItem.querySelector('.scroll-ar').style.color = '';
+      }
+      URL.revokeObjectURL(audioUrl);
+      if (callback) callback();
+    };
+    
+    audio.onerror = (e) => {
+      console.error('ElevenLabs Audio Playback error:', e);
+      cardArabic.classList.remove('speaking');
+      if (activeItem) {
+        activeItem.querySelector('.scroll-ar').style.color = '';
+      }
+      URL.revokeObjectURL(audioUrl);
+      showToast('שגיאה בניגון שמע ElevenLabs. מבצע פולבק למנוע מקומי...', 3000);
+      speakLocalArabicFallback(text, callback);
+    };
+    
+    state.audioElement = audio;
+    audio.play().catch((err) => {
+      console.error('Failed to play audio:', err);
+      cardArabic.classList.remove('speaking');
+      if (activeItem) {
+        activeItem.querySelector('.scroll-ar').style.color = '';
+      }
+      speakLocalArabicFallback(text, callback);
+    });
+  })
+  .catch((err) => {
+    console.error('ElevenLabs API call failed:', err);
+    cardArabic.classList.remove('speaking');
+    if (activeItem) {
+      activeItem.querySelector('.scroll-ar').style.color = '';
+    }
+    showToast('מנוע ElevenLabs נכשל. עובר למנוע מקומי...', 3000);
+    speakLocalArabicFallback(text, callback);
+  });
+}
+
+function speakLocalArabicFallback(text, callback) {
+  if (!('speechSynthesis' in window)) {
+    if (callback) callback();
+    return;
+  }
+  
+  window.speechSynthesis.cancel();
+  
+  const spokenText = formatSpokenArabic(text);
   const processedText = injectPauses(spokenText, state.speechSpeed);
   const utterance = new SpeechSynthesisUtterance(processedText);
   
-  // Set voice if chosen
   if (state.selectedArabicVoiceName) {
     const v = state.voices.find(voice => voice.name === state.selectedArabicVoiceName);
     if (v) utterance.voice = v;
   }
   
-  utterance.lang = 'ar-EG'; // Egyptian/Levantine accent approximation
-  
-  // CRITICAL USER REQUIREMENT:
-  // "אני לא רוצה שזה יהיה לאט אלא הלאט ישפיע גם על הפסקות בין מילה למילה"
-  // Keep the actual word pronunciation rate clear and natural (min 0.82), 
-  // and only make the gaps between words longer using the injected pauses above!
+  utterance.lang = 'ar-EG';
   utterance.rate = Math.max(0.82, state.speechSpeed); 
   
   utterance.onstart = () => {
     cardArabic.classList.add('speaking');
-    // Highlight scrolling item
     const activeItem = document.getElementById(`scroll-line-${state.currentLineIndex}`);
     if (activeItem) {
       activeItem.querySelector('.scroll-ar').style.color = 'var(--primary)';
@@ -1840,7 +1959,7 @@ function speakArabic(text, callback) {
   };
   
   utterance.onerror = (e) => {
-    console.error('Arabic Synthesis error:', e);
+    console.error('Local Arabic Synthesis error:', e);
     cardArabic.classList.remove('speaking');
     if (callback) callback();
   };
@@ -1852,7 +1971,6 @@ function speakArabic(text, callback) {
 function speakHebrew(text, callback) {
   if (!('speechSynthesis' in window)) return;
   
-  // Inject pauses if speed is slow to make intervals between words proportional
   const processedText = injectPauses(text, state.speechSpeed);
   const utterance = new SpeechSynthesisUtterance(processedText);
   
@@ -1862,8 +1980,6 @@ function speakHebrew(text, callback) {
   }
   
   utterance.lang = 'he-IL';
-  
-  // Keep actual word pronunciation rate clear and natural (min 0.82)
   utterance.rate = Math.max(0.82, state.speechSpeed);
   
   utterance.onstart = () => {
@@ -1900,6 +2016,12 @@ function stopSpeaking() {
   if (state.isWaitingTimeout) {
     clearTimeout(state.isWaitingTimeout);
     state.isWaitingTimeout = null;
+  }
+  
+  if (state.audioElement) {
+    state.audioElement.pause();
+    state.audioElement.src = '';
+    state.audioElement = null;
   }
   
   if ('speechSynthesis' in window) {
@@ -2203,6 +2325,14 @@ function bindEvents() {
     localStorage.setItem('tts_arabic_voice', voiceSelectArabic.value);
     localStorage.setItem('tts_hebrew_voice', voiceSelectHebrew.value);
     
+    // Save ElevenLabs settings
+    const elKey = elevenlabsKeyInput ? elevenlabsKeyInput.value.trim() : '';
+    const elVoice = elevenlabsVoiceInput ? elevenlabsVoiceInput.value.trim() : '';
+    state.elevenlabsKey = elKey;
+    state.elevenlabsVoiceId = elVoice || '21m00Tcm4TlvDq8ikWAM';
+    localStorage.setItem('elevenlabs_key', elKey);
+    localStorage.setItem('elevenlabs_voice', state.elevenlabsVoiceId);
+    
     settingsModal.style.display = 'none';
     showToast('ההגדרות נשמרו בהצלחה! ⚙️');
     
@@ -2396,7 +2526,7 @@ function registerServiceWorker() {
   if ('caches' in window) {
     caches.keys().then((names) => {
       names.forEach((name) => {
-        if (name !== 'hakawati-cache-v10') {
+        if (name !== 'hakawati-cache-v11') {
           caches.delete(name).then(() => console.log(`Cleared old cache name: ${name}`));
         }
       });
