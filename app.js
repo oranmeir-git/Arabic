@@ -97,12 +97,12 @@ const themeSun = document.getElementById('theme-sun');
 
 // Initialize the Application
 window.addEventListener('DOMContentLoaded', () => {
-  setupSpeechSynthesis();
-  loadThemePreference();
-  loadDisplayPreferences();
-  bindEvents();
-  loadStories();
-  registerServiceWorker();
+  try { setupSpeechSynthesis(); } catch (e) { console.error('Error setting up speech synthesis:', e); }
+  try { loadThemePreference(); } catch (e) { console.error('Error loading theme preference:', e); }
+  try { loadDisplayPreferences(); } catch (e) { console.error('Error loading display preferences:', e); }
+  try { bindEvents(); } catch (e) { console.error('Error binding events:', e); }
+  try { loadStories(); } catch (e) { console.error('Error loading stories:', e); }
+  try { registerServiceWorker(); } catch (e) { console.error('Error registering service worker:', e); }
 });
 
 // ==========================================================================
@@ -128,9 +128,9 @@ function setupSpeechSynthesis() {
 function populateVoiceSelectors() {
   if (state.voices.length === 0) return;
 
-  // Filter Arabic and Hebrew voices
-  const arVoices = state.voices.filter(v => v.lang.startsWith('ar'));
-  const heVoices = state.voices.filter(v => v.lang.startsWith('he') || v.lang.startsWith('iw'));
+  // Filter Arabic and Hebrew voices safely
+  const arVoices = state.voices.filter(v => v && typeof v.lang === 'string' && v.lang.startsWith('ar'));
+  const heVoices = state.voices.filter(v => v && typeof v.lang === 'string' && (v.lang.startsWith('he') || v.lang.startsWith('iw')));
 
   // Update warnings
   if (arVoices.length === 0 || heVoices.length === 0) {
@@ -147,10 +147,11 @@ function populateVoiceSelectors() {
     opt.textContent = 'קול ברירת מחדל בערבית';
     voiceSelectArabic.appendChild(opt);
   } else {
-    // Helper to score how close a voice is to Palestinian/Levantine spoken dialect
+    // Helper to score how close a voice is to Palestinian/Levantine spoken dialect safely
     const getVoiceScore = (voice) => {
-      const lang = voice.lang.toLowerCase();
-      const name = voice.name.toLowerCase();
+      if (!voice) return 0;
+      const lang = (voice.lang || '').toLowerCase();
+      const name = (voice.name || '').toLowerCase();
       
       // Top priority: Palestinian, Jordanian, Israeli Arabic, Syrian, Lebanese (Levantine Dialect group)
       if (lang.includes('ar-jo') || lang.includes('ar-ps') || lang.includes('ar-il') || lang.includes('ar-lb') || lang.includes('ar-sy')) {
