@@ -1760,7 +1760,9 @@ function injectPauses(text, speed) {
   
   const isArabic = /[\u0600-\u06FF]/.test(text);
   let separator = '';
-  if (speed <= 0.4) {
+  if (speed <= 0.3) {
+    separator = ' ... ... ';
+  } else if (speed <= 0.5) {
     separator = ' ... ';
   } else {
     separator = isArabic ? ' ، ' : ' , ';
@@ -1784,8 +1786,13 @@ function speakArabic(text, callback) {
     if (v) utterance.voice = v;
   }
   
-  utterance.lang = 'ar-EG'; // Egpytian/Levantine accent approximation
-  utterance.rate = state.speechSpeed;
+  utterance.lang = 'ar-EG'; // Egyptian/Levantine accent approximation
+  
+  // CRITICAL USER REQUIREMENT:
+  // "אני לא רוצה שזה יהיה לאט אלא הלאט ישפיע גם על הפסקות בין מילה למילה"
+  // Keep the actual word pronunciation rate clear and natural (min 0.82), 
+  // and only make the gaps between words longer using the injected pauses above!
+  utterance.rate = Math.max(0.82, state.speechSpeed); 
   
   utterance.onstart = () => {
     cardArabic.classList.add('speaking');
@@ -1828,7 +1835,9 @@ function speakHebrew(text, callback) {
   }
   
   utterance.lang = 'he-IL';
-  utterance.rate = state.speechSpeed;
+  
+  // Keep actual word pronunciation rate clear and natural (min 0.82)
+  utterance.rate = Math.max(0.82, state.speechSpeed);
   
   utterance.onstart = () => {
     cardHebrew.classList.add('speaking-hebrew');
@@ -1876,6 +1885,9 @@ function stopSpeaking() {
 
 function handleAutoplayAdvance() {
   if (!state.autoAdvance || !state.isPlaying) return;
+  
+  // Proportional gap between sentences based on speech speed (longer gaps for slower speeds)
+  const sentenceGap = state.speechSpeed < 0.8 ? Math.round(1200 * (0.8 / state.speechSpeed)) : 1200;
   
   state.isWaitingTimeout = setTimeout(() => {
     if (!state.isPlaying) return;
@@ -1929,7 +1941,7 @@ function handleAutoplayAdvance() {
         updateUIForCurrentLine();
       }
     }
-  }, 1200); // Gentle gap between sentences
+  }, sentenceGap); // Gentle scaled gap between sentences
 }
 
 function updatePlayButtonUI() {
