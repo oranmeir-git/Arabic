@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hakawati-cache-v9';
+const CACHE_NAME = 'hakawati-cache-v10';
 const ASSETS = [
   './',
   './index.html',
@@ -36,21 +36,21 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Fetch Event (Stale-While-Revalidate caching strategy)
+// Fetch Event (Network-First, falling back to cache for PWA/Offline support)
 self.addEventListener('fetch', (e) => {
   e.respondWith(
-    caches.match(e.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch in background to update cache for next load
-        fetch(e.request).then((networkResponse) => {
-          if (networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, networkResponse));
-          }
-        }).catch((err) => console.log('SW fetch background update failed:', err));
-        
-        return cachedResponse;
-      }
-      return fetch(e.request);
-    })
+    fetch(e.request)
+      .then((networkResponse) => {
+        // If successful and it's a valid GET request, cache it
+        if (networkResponse.status === 200 && e.request.method === 'GET') {
+          const cacheCopy = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, cacheCopy));
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        // If offline/network fails, fallback to cache
+        return caches.match(e.request);
+      })
   );
 });

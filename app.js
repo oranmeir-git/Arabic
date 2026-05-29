@@ -2392,6 +2392,17 @@ function parseCustomStoryText(text) {
 }
 
 function registerServiceWorker() {
+  // Clear old caches programmatically to bypass any browser stuck states instantly
+  if ('caches' in window) {
+    caches.keys().then((names) => {
+      names.forEach((name) => {
+        if (name !== 'hakawati-cache-v10') {
+          caches.delete(name).then(() => console.log(`Cleared old cache name: ${name}`));
+        }
+      });
+    });
+  }
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./service-worker.js')
