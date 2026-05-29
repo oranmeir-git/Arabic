@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hakawati-cache-v15';
+const CACHE_NAME = 'hakawati-cache-v16';
 const ASSETS = [
   './',
   './index.html',
