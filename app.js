@@ -1811,9 +1811,6 @@ function formatSpokenArabic(text) {
   // --- 3. Systemic Fusha Case Ending & Tanween stripping ---
   spoken = spoken.replace(/[\u064B\u064C\u064D]/g, '');
   
-  // Replace final Fatha/Damma/Kasra at word boundaries with Sukun (ْ) to stop consonant vocalizations
-  spoken = spoken.replace(/([\u0621-\u064A])[\u064E\u064F\u0650](?=\s|$|[.,،!?])/g, '$1ْ');
-  
   return spoken;
 }
 
@@ -1963,8 +1960,7 @@ function speakLocalArabicFallback(text, callback) {
   window.speechSynthesis.cancel();
   
   const spokenText = formatSpokenArabic(text);
-  const processedText = injectPauses(spokenText, state.speechSpeed);
-  const utterance = new SpeechSynthesisUtterance(processedText);
+  const utterance = new SpeechSynthesisUtterance(spokenText);
   
   if (state.selectedArabicVoiceName) {
     const v = state.voices.find(voice => voice.name === state.selectedArabicVoiceName);
@@ -2559,7 +2555,7 @@ function registerServiceWorker() {
   if ('caches' in window) {
     caches.keys().then((names) => {
       names.forEach((name) => {
-        if (name !== 'hakawati-cache-v16') {
+        if (name !== 'hakawati-cache-v17') {
           caches.delete(name).then(() => console.log(`Cleared old cache name: ${name}`));
         }
       });
