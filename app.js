@@ -1748,6 +1748,29 @@ function speakCurrentLine() {
 }
 
 /**
+ * Formats the Arabic text specifically for the Text-to-Speech (TTS) engine
+ * to bypass standard Fusha (literary Arabic) rules and force spoken Ammiya (Palestinian)
+ * pronunciation, such as removing case endings and using phonetic spellings for names.
+ */
+function formatSpokenArabic(text) {
+  let spoken = text;
+  
+  // 1. Spoken Palestinian phonetic adjustments for standard words in the Gili/built-in stories
+  spoken = spoken.replace(/آرثر/g, 'أَرْثُرْ'); // Pronounce Arthur correctly (stop on Sukun)
+  spoken = spoken.replace(/تطعمي/g, 'تَطْعَمِي'); // Pronounce "tat'ami" instead of "tut'imi"
+  spoken = spoken.replace(/تضب/g, 'تَضُبْ'); // Pronounce "tadub" (stop on Sukun) instead of "tadubbu"
+  spoken = spoken.replace(/صحونها/g, 'صْحُونْهَا'); // Pronounce "schunha" (spoken) instead of "suhunaha" (Fusha)
+  spoken = spoken.replace(/الأكل/g, 'الأَكِلْ'); // Pronounce "al-akil" (spoken) instead of "al-akli" (Fusha)
+  
+  // 2. Remove standard Fusha case endings (short vowels Fatha, Damma, Kasra) 
+  // at the end of words and replace them with a Sukun (ْ - \u0652) to stop on a consonant, 
+  // which is the absolute standard in spoken dialect.
+  spoken = spoken.replace(/([\u0621-\u064A])[\u064E\u064F\u0650](?=\s|$|[.,،!?])/g, '$1ْ');
+  
+  return spoken;
+}
+
+/**
  * Injects pauses (commas or ellipses) between words to ensure slow speech speeds 
  * also slow down the silence interval between words proportionally, rather than 
  * just stretching the vowels of single words.
@@ -1777,8 +1800,11 @@ function speakArabic(text, callback) {
   
   window.speechSynthesis.cancel();
   
+  // Format the Arabic text specifically for spoken Palestinian Ammiya
+  const spokenText = formatSpokenArabic(text);
+  
   // Inject pauses if speed is slow to make intervals between words proportional
-  const processedText = injectPauses(text, state.speechSpeed);
+  const processedText = injectPauses(spokenText, state.speechSpeed);
   const utterance = new SpeechSynthesisUtterance(processedText);
   
   // Set voice if chosen
