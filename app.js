@@ -1770,16 +1770,48 @@ function speakCurrentLine() {
 function formatSpokenArabic(text) {
   let spoken = text;
   
-  // 1. Spoken Palestinian phonetic adjustments for standard words in the Gili/built-in stories
-  spoken = spoken.replace(/آرثر/g, 'أَرْثُرْ'); // Pronounce Arthur correctly (stop on Sukun)
-  spoken = spoken.replace(/تطعمي/g, 'تَطْعَمِي'); // Pronounce "tat'ami" instead of "tut'imi"
-  spoken = spoken.replace(/تضب/g, 'تَضُبْ'); // Pronounce "tadub" (stop on Sukun) instead of "tadubbu"
-  spoken = spoken.replace(/صحونها/g, 'صْحُونْهَا'); // Pronounce "schunha" (spoken) instead of "suhunaha" (Fusha)
-  spoken = spoken.replace(/الأكل/g, 'الأَكِلْ'); // Pronounce "al-akil" (spoken) instead of "al-akli" (Fusha)
+  // --- 1. Systemic Particle Overrides for Levantine Spoken Dialect ---
+  spoken = spoken.replace(/\bهو\b/g, 'هُوّْ');       // "huwwe" instead of Fusha "huwa"
+  spoken = spoken.replace(/\bهي\b/g, 'هِيّْ');       // "hiyye" instead of Fusha "hiya"
+  spoken = spoken.replace(/\bبعد\b/g, 'بَعِدْ');      // "ba'd/ba'id" instead of "ba'da"
+  spoken = spoken.replace(/\bقبل\b/g, 'قَبِلْ');      // "qabil/qabel" instead of "qabla"
+  spoken = spoken.replace(/\bعن\b/g, 'عَنْ');       // "an" instead of "ani"
+  spoken = spoken.replace(/\bمن\b/g, 'مِنْ');       // "min" instead of "mina"
   
-  // 2. Remove standard Fusha case endings (short vowels Fatha, Damma, Kasra) 
-  // at the end of words and replace them with a Sukun (ْ - \u0652) to stop on a consonant, 
-  // which is the absolute standard in spoken dialect.
+  // --- 2. Specific Vocalization Overrides for Stories ---
+  spoken = spoken.replace(/آرثر/g, 'أَرْثُرْ');       // "Arthur" correctly
+  spoken = spoken.replace(/تطعمي/g, 'تَطْعَمِي');     // "tat'ami" (spoken) instead of "tut'imi" (Fusha)
+  spoken = spoken.replace(/تضب/g, 'تَضُبْ');         // "tadub" (spoken) instead of "tadubbu" (Fusha)
+  spoken = spoken.replace(/صحونها/g, 'صْحُونْهَا');   // "schunha" (spoken) instead of "suhunaha" (Fusha)
+  spoken = spoken.replace(/الأكل/g, 'أَلْأَكِلْ');     // "al-akil" (spoken) instead of "al-akli" (Fusha)
+  spoken = spoken.replace(/أبوها/g, 'أَبُوهَا');       // "abuha" (spoken)
+  spoken = spoken.replace(/بالווקט/g, 'بِالْوَقِتْ');   // typo safety
+  spoken = spoken.replace(/بالوقت/g, 'بِالْوَقِتْ');    // "bil-waqt" (spoken) instead of "bi-al-waqti"
+  spoken = spoken.replace(/الفطور/g, 'أَلْفְطُورْ');     // "al-ftoor" (spoken) instead of "al-fatooru"
+  spoken = spoken.replace(/عيلتها/g, 'عِيلِتْهَا');     // "eilatha" (spoken) instead of "a'ilatiha"
+  spoken = spoken.replace(/تصور/g, 'تْصَوِّרْ');       // "tsawwer" (spoken)
+  spoken = spoken.replace(/الكلب/g, 'أَلْكَلْبْ');      // "al-kalb" (spoken)
+  
+  // Line 1 Gili specific overrides:
+  spoken = spoken.replace(/بالعطلة/g, 'بِالْعُطْلِهْ');
+  spoken = spoken.replace(/בעطلة/g, 'بِعُطْلِهْ');
+  spoken = spoken.replace(/العطلة/g, 'أَلْعُطْلِهْ');
+  spoken = spoken.replace(/الصيفية/g, 'أَصּَيْفِيּِهْ');
+  spoken = spoken.replace(/إنها/g, 'إِنְּهَا');
+  spoken = spoken.replace(/عطلة/g, 'عُطْلِهْ');
+  spoken = spoken.replace(/مش/g, 'مِشّْ');
+  spoken = spoken.replace(/لازم/g, 'لَازِمْ');
+  spoken = spoken.replace(/نعمل/g, 'نِعְمَلْ');
+  spoken = spoken.replace(/فيها/g, 'فِيهَا');
+  spoken = spoken.replace(/إشي/g, 'إِشِي');
+  spoken = spoken.replace(/هاد/g, 'هَادْ');
+  spoken = spoken.replace(/اللي/g, 'أَلִּי');
+  spoken = spoken.replace(/تقوله/g, 'تْقُولُو');
+  
+  // --- 3. Systemic Fusha Case Ending & Tanween stripping ---
+  spoken = spoken.replace(/[\u064B\u064C\u064D]/g, '');
+  
+  // Replace final Fatha/Damma/Kasra at word boundaries with Sukun (ْ) to stop consonant vocalizations
   spoken = spoken.replace(/([\u0621-\u064A])[\u064E\u064F\u0650](?=\s|$|[.,،!?])/g, '$1ْ');
   
   return spoken;
@@ -2527,7 +2559,7 @@ function registerServiceWorker() {
   if ('caches' in window) {
     caches.keys().then((names) => {
       names.forEach((name) => {
-        if (name !== 'hakawati-cache-v13') {
+        if (name !== 'hakawati-cache-v14') {
           caches.delete(name).then(() => console.log(`Cleared old cache name: ${name}`));
         }
       });
