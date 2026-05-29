@@ -1840,9 +1840,10 @@ function speakViaElevenLabs(text, voiceId, callback) {
   // Format the Arabic text specifically for spoken Palestinian Ammiya
   const spokenText = formatSpokenArabic(text);
   
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${cleanVoiceId}`;
+  const targetUrl = `https://api.elevenlabs.io/v1/text-to-speech/${cleanVoiceId}`;
+  const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
   
-  fetch(url, {
+  fetch(proxyUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -2526,7 +2527,7 @@ function registerServiceWorker() {
   if ('caches' in window) {
     caches.keys().then((names) => {
       names.forEach((name) => {
-        if (name !== 'hakawati-cache-v11') {
+        if (name !== 'hakawati-cache-v12') {
           caches.delete(name).then(() => console.log(`Cleared old cache name: ${name}`));
         }
       });
