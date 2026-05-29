@@ -47,50 +47,58 @@
 
     <!-- Main Content Area -->
     <main class="main-content">
-      <!-- Story Selector Drawer/Sidebar -->
-      <section class="story-selector-container">
-        <label for="story-select" class="section-label">בחר סיפור ללמידה:</label>
-        <div class="custom-select-wrapper">
-          <select id="story-select">
-            <!-- Loaded dynamically from stories.json -->
-          </select>
-        </div>
-      </section>
-
-      <!-- Navigation & Mode Bar -->
-      <section class="mode-navigation-bar">
-        <!-- Dual Mode Switch -->
-        <div class="mode-toggle-group">
-          <button id="mode-study" class="mode-btn active" aria-label="מעבר למצב לימוד: ערבית ואז עברית">
-            <span class="mode-icon">📖</span>
-            <div class="mode-info">
-              <span class="mode-title">מצב לימוד משולב</span>
-              <span class="mode-subtitle">ערבית ➔ עברית שורה אחר שורה</span>
-            </div>
-          </button>
-          <button id="mode-listening" class="mode-btn" aria-label="מעבר למצב הקשבה: ערבית בלבד">
-            <span class="mode-icon">🎧</span>
-            <div class="mode-info">
-              <span class="mode-title">מצב הקשבה בערבית</span>
-              <span class="mode-subtitle">ערבית בלבד ברצף</span>
-            </div>
-          </button>
-        </div>
-
-        <!-- View Mode Switch -->
-        <div class="view-toggle-container">
-          <span class="label-text">סגנון תצוגה:</span>
-          <div class="toggle-buttons">
-            <button id="view-card" class="toggle-btn active" title="תצוגת כרטיס בודד">כרטיס ממוקד</button>
-            <button id="view-scroll" class="toggle-btn" title="תצוגת סיפור מלא גלילה">סיפור מלא</button>
+      <!-- Collapsible Settings Panel -->
+      <div class="menu-collapsible-bar" id="menu-collapsible-bar">
+        <span class="menu-collapsible-title">⚙️ אפשרויות, סיפורים וחלקים</span>
+        <span class="menu-collapsible-arrow" id="menu-collapsible-arrow">▼</span>
+      </div>
+      
+      <div class="menu-collapsible-content collapsed" id="menu-collapsible-content">
+        <!-- Story Selector Drawer/Sidebar -->
+        <section class="story-selector-container">
+          <label for="story-select" class="section-label">בחר סיפור ללמידה:</label>
+          <div class="custom-select-wrapper">
+            <select id="story-select">
+              <!-- Loaded dynamically from stories.json -->
+            </select>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- Part Selector -->
-      <section class="part-selector-container" id="part-selector-area">
-        <!-- Loaded dynamically based on active story -->
-      </section>
+        <!-- Navigation & Mode Bar -->
+        <section class="mode-navigation-bar">
+          <!-- Dual Mode Switch -->
+          <div class="mode-toggle-group">
+            <button id="mode-study" class="mode-btn active" aria-label="מעבר למצב לימוד: ערבית ואז עברית">
+              <span class="mode-icon">📖</span>
+              <div class="mode-info">
+                <span class="mode-title">מצב לימוד משולב</span>
+                <span class="mode-subtitle">ערבית ➔ עברית שורה אחר שורה</span>
+              </div>
+            </button>
+            <button id="mode-listening" class="mode-btn" aria-label="מעבר למצב הקשבה: ערבית בלבד">
+              <span class="mode-icon">🎧</span>
+              <div class="mode-info">
+                <span class="mode-title">מצב הקשבה בערבית</span>
+                <span class="mode-subtitle">ערבית בלבד ברצף</span>
+              </div>
+            </button>
+          </div>
+
+          <!-- View Mode Switch -->
+          <div class="view-toggle-container">
+            <span class="label-text">סגנון תצוגה:</span>
+            <div class="toggle-buttons">
+              <button id="view-card" class="toggle-btn active" title="תצוגת כרטיס בודד">כרטיס ממוקד</button>
+              <button id="view-scroll" class="toggle-btn" title="תצוגת סיפור מלא גלילה">סיפור מלא</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Part Selector -->
+        <section class="part-selector-container" id="part-selector-area">
+          <!-- Loaded dynamically based on active story -->
+        </section>
+      </div>
 
       <!-- Progress bar -->
       <div class="progress-bar-container">
@@ -164,7 +172,7 @@
       <div class="speed-control">
         <span class="control-label">מהירות הקראה:</span>
         <div class="slider-wrapper">
-          <input type="range" id="speech-speed" min="0.5" max="1.5" step="0.1" value="0.9">
+          <input type="range" id="speech-speed" min="0.1" max="1.5" step="0.1" value="0.9">
           <span id="speed-display" class="badge">0.9x</span>
         </div>
       </div>

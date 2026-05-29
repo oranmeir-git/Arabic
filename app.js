@@ -37,6 +37,11 @@ const currentPartNameLabel = document.getElementById('current-part-name');
 const progressTextLabel = document.getElementById('progress-text');
 const progressFill = document.getElementById('progress-fill');
 
+// Collapsible Elements
+const menuCollapsibleBar = document.getElementById('menu-collapsible-bar');
+const menuCollapsibleContent = document.getElementById('menu-collapsible-content');
+const menuCollapsibleArrow = document.getElementById('menu-collapsible-arrow');
+
 // View Containers
 const cardArabic = document.getElementById('card-arabic');
 const cardPhonetics = document.getElementById('card-phonetics');
@@ -1567,6 +1572,21 @@ function selectStoryPart(partIndex) {
   
   // Render scroll view (since parts changed)
   renderScrollStoryLines();
+
+  // Auto collapse settings menu when part is selected to make room on mobile
+  collapseSettingsMenu();
+}
+
+/**
+ * Collapses the settings collapsible menu drawer to save space on mobile screen viewports.
+ */
+function collapseSettingsMenu() {
+  if (menuCollapsibleContent && !menuCollapsibleContent.classList.contains('collapsed')) {
+    menuCollapsibleContent.classList.add('collapsed');
+  }
+  if (menuCollapsibleArrow && menuCollapsibleArrow.classList.contains('open')) {
+    menuCollapsibleArrow.classList.remove('open');
+  }
 }
 
 function getStoryLineCount() {
@@ -1918,9 +1938,18 @@ function showToast(message, duration = 3000) {
 // Event Binding & User Interaction Controllers
 // ==========================================================================
 function bindEvents() {
+  // Collapsible Settings Menu Bar Click Toggle
+  if (menuCollapsibleBar && menuCollapsibleContent && menuCollapsibleArrow) {
+    menuCollapsibleBar.addEventListener('click', () => {
+      const isCollapsed = menuCollapsibleContent.classList.toggle('collapsed');
+      menuCollapsibleArrow.classList.toggle('open', !isCollapsed);
+    });
+  }
+
   // Story Select change
   selectStory.addEventListener('change', (e) => {
     setActiveStory(parseInt(e.target.value));
+    collapseSettingsMenu();
   });
 
   // Play / Pause Toggle
