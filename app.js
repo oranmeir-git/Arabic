@@ -2559,7 +2559,7 @@ function registerServiceWorker() {
   if ('caches' in window) {
     caches.keys().then((names) => {
       names.forEach((name) => {
-        if (name !== 'hakawati-cache-v14') {
+        if (name !== 'hakawati-cache-v15') {
           caches.delete(name).then(() => console.log(`Cleared old cache name: ${name}`));
         }
       });
