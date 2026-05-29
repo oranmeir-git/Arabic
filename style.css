@@ -787,15 +787,17 @@ select:focus {
    ========================================================================== */
 .playback-controls-container {
   position: relative;
-  background: rgba(15, 23, 42, 0.95);
+  background: var(--bg-card);
   backdrop-filter: blur(15px);
-  border-top: 1px solid var(--border-color);
-  padding: 14px 20px 20px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  z-index: 100;
-  box-shadow: 0 -10px 30px rgba(0,0,0,0.3);
+  gap: 16px;
+  z-index: 10;
+  box-shadow: var(--shadow-sm);
+  margin-top: 8px;
 }
 
 .speed-control {

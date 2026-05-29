@@ -147,20 +147,45 @@ function populateVoiceSelectors() {
     opt.textContent = 'קול ברירת מחדל בערבית';
     voiceSelectArabic.appendChild(opt);
   } else {
+    // Helper to score how close a voice is to Palestinian/Levantine spoken dialect
+    const getVoiceScore = (voice) => {
+      const lang = voice.lang.toLowerCase();
+      const name = voice.name.toLowerCase();
+      
+      // Top priority: Palestinian, Jordanian, Israeli Arabic, Syrian, Lebanese (Levantine Dialect group)
+      if (lang.includes('ar-jo') || lang.includes('ar-ps') || lang.includes('ar-il') || lang.includes('ar-lb') || lang.includes('ar-sy')) {
+        return 100;
+      }
+      // Second priority: Egyptian (closest spoken dialect natively supported by TTS and highly understood)
+      if (lang.includes('ar-eg')) {
+        return 80;
+      }
+      // Third priority: High quality neural/natural/premium Google or Microsoft voices
+      if (name.includes('natural') || name.includes('neural') || name.includes('premium')) {
+        return 50;
+      }
+      if (name.includes('google')) {
+        return 30;
+      }
+      return 10;
+    };
+    
+    // Sort voices descending by score
+    const sortedArVoices = [...arVoices].sort((a, b) => getVoiceScore(b) - getVoiceScore(a));
+    
     arVoices.forEach(voice => {
       const opt = document.createElement('option');
       opt.value = voice.name;
       opt.textContent = `${voice.name} (${voice.lang})`;
-      // Prefer Google or high quality voices
-      if (voice.name.includes('Google') || voice.name.includes('Premium')) {
-        opt.selected = true;
-        state.selectedArabicVoiceName = voice.name;
-      }
       voiceSelectArabic.appendChild(opt);
     });
-    // Set default if nothing selected yet
-    if (!state.selectedArabicVoiceName && arVoices.length > 0) {
-      state.selectedArabicVoiceName = arVoices[0].name;
+    
+    // Set the best scored voice as default
+    if (sortedArVoices.length > 0) {
+      const best = sortedArVoices[0];
+      voiceSelectArabic.value = best.name;
+      state.selectedArabicVoiceName = best.name;
+      console.log(`Auto-selected best Arabic spoken dialect voice: ${best.name} (${best.lang})`);
     }
   }
 
@@ -1721,14 +1746,37 @@ function speakCurrentLine() {
   });
 }
 
+/**
+ * Injects pauses (commas or ellipses) between words to ensure slow speech speeds 
+ * also slow down the silence interval between words proportionally, rather than 
+ * just stretching the vowels of single words.
+ */
+function injectPauses(text, speed) {
+  if (speed >= 0.8) return text;
+  
+  // Clean double spaces and split by spaces
+  const words = text.trim().split(/\s+/);
+  if (words.length <= 1) return text;
+  
+  const isArabic = /[\u0600-\u06FF]/.test(text);
+  let separator = '';
+  if (speed <= 0.4) {
+    separator = ' ... ';
+  } else {
+    separator = isArabic ? ' ، ' : ' , ';
+  }
+  
+  return words.join(separator);
+}
+
 function speakArabic(text, callback) {
   if (!('speechSynthesis' in window)) return;
   
   window.speechSynthesis.cancel();
   
-  // Remove vowels/diacritics if TTS struggles (Web Speech API is usually fine, but clean text can help)
-  // Clean standard spoken Arabic is usually pronounced nicely when marked as ar-EG or ar-SA
-  const utterance = new SpeechSynthesisUtterance(text);
+  // Inject pauses if speed is slow to make intervals between words proportional
+  const processedText = injectPauses(text, state.speechSpeed);
+  const utterance = new SpeechSynthesisUtterance(processedText);
   
   // Set voice if chosen
   if (state.selectedArabicVoiceName) {
@@ -1770,7 +1818,9 @@ function speakArabic(text, callback) {
 function speakHebrew(text, callback) {
   if (!('speechSynthesis' in window)) return;
   
-  const utterance = new SpeechSynthesisUtterance(text);
+  // Inject pauses if speed is slow to make intervals between words proportional
+  const processedText = injectPauses(text, state.speechSpeed);
+  const utterance = new SpeechSynthesisUtterance(processedText);
   
   if (state.selectedHebrewVoiceName) {
     const v = state.voices.find(voice => voice.name === state.selectedHebrewVoiceName);

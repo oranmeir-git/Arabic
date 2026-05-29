@@ -165,45 +165,45 @@
           </div>
         </div>
       </section>
-    </main>
 
-    <!-- Audio & Story Navigation Controls -->
-    <section class="playback-controls-container">
-      <div class="speed-control">
-        <span class="control-label">מהירות הקראה:</span>
-        <div class="slider-wrapper">
-          <input type="range" id="speech-speed" min="0.1" max="1.5" step="0.1" value="0.9">
-          <span id="speed-display" class="badge">0.9x</span>
+      <!-- Audio & Story Navigation Controls -->
+      <section class="playback-controls-container">
+        <div class="speed-control">
+          <span class="control-label">מהירות הקראה:</span>
+          <div class="slider-wrapper">
+            <input type="range" id="speech-speed" min="0.1" max="1.5" step="0.1" value="0.9">
+            <span id="speed-display" class="badge">0.9x</span>
+          </div>
         </div>
-      </div>
 
-      <div class="main-buttons">
-        <button id="btn-prev" class="play-action-btn secondary tooltip" data-tooltip="שורה הקודמת (חץ ימינה)">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-skip-forward"><polyline points="5 4 15 12 5 20"></polyline><line x1="19" y1="5" x2="19" y2="19"></line></svg>
-        </button>
-        
-        <button id="btn-play-pause" class="play-action-btn primary tooltip" data-tooltip="הפעל / השהה (רווח)">
-          <!-- Play icon -->
-          <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="feather feather-play"><polygon points="6 3 20 12 6 21"></polygon></svg>
-          <!-- Pause icon (hidden by default) -->
-          <svg id="pause-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="feather feather-pause" style="display:none;"><rect x="5" y="4" width="4" height="16" rx="1"></rect><rect x="15" y="4" width="4" height="16" rx="1"></rect></svg>
-        </button>
+        <div class="main-buttons">
+          <button id="btn-prev" class="play-action-btn secondary tooltip" data-tooltip="שורה הקודמת (חץ ימינה)">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-skip-forward"><polyline points="5 4 15 12 5 20"></polyline><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+          </button>
+          
+          <button id="btn-play-pause" class="play-action-btn primary tooltip" data-tooltip="הפעל / השהה (רווח)">
+            <!-- Play icon -->
+            <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="feather feather-play"><polygon points="6 3 20 12 6 21"></polygon></svg>
+            <!-- Pause icon (hidden by default) -->
+            <svg id="pause-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="feather feather-pause" style="display:none;"><rect x="5" y="4" width="4" height="16" rx="1"></rect><rect x="15" y="4" width="4" height="16" rx="1"></rect></svg>
+          </button>
 
-        <button id="btn-next" class="play-action-btn secondary tooltip" data-tooltip="שורה הבאה (חץ שמאלה)">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-skip-back"><polyline points="19 20 9 12 19 4"></polyline><line x1="5" y1="5" x2="5" y2="19"></line></svg>
-        </button>
-      </div>
+          <button id="btn-next" class="play-action-btn secondary tooltip" data-tooltip="שורה הבאה (חץ שמאלה)">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-skip-back"><polyline points="19 20 9 12 19 4"></polyline><line x1="5" y1="5" x2="5" y2="19"></line></svg>
+          </button>
+        </div>
 
-      <div class="helper-controls">
-        <button id="btn-replay-story" class="text-btn">
-          🔄 הפעל מחדש
-        </button>
-        <span class="divider">|</span>
-        <button id="btn-autoplay" class="text-btn active">
-          ⚡ מעבר אוטומטי
-        </button>
-      </div>
-    </section>
+        <div class="helper-controls">
+          <button id="btn-replay-story" class="text-btn">
+            🔄 הפעל מחדש
+          </button>
+          <span class="divider">|</span>
+          <button id="btn-autoplay" class="text-btn active">
+            ⚡ מעבר אוטומטי
+          </button>
+        </div>
+      </section>
+    </main>
 
     <!-- Modal: Settings Drawer -->
     <div id="settings-modal" class="modal">
